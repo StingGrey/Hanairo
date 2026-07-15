@@ -7,6 +7,8 @@ enum AppTab: String, CaseIterable, Identifiable {
     case search
     case more
 
+    static let primaryTabs: [AppTab] = [.discovery, .ranking, .library, .more]
+
     var id: String { rawValue }
 
     var title: String {
@@ -15,7 +17,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         case .ranking: "排行"
         case .library: "收藏"
         case .search: "搜索"
-        case .more: "更多"
+        case .more: "我的"
         }
     }
 
@@ -25,7 +27,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         case .ranking: "trophy"
         case .library: "heart"
         case .search: "magnifyingglass"
-        case .more: "ellipsis.circle"
+        case .more: "person.crop.circle"
         }
     }
 

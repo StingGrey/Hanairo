@@ -41,7 +41,7 @@ struct MoreView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .navigationTitle("更多")
+        .navigationTitle("我的")
         .confirmationDialog(
             "退出当前账户？",
             isPresented: $showsSignOutConfirmation,
@@ -85,7 +85,7 @@ struct MoreView: View {
     }
 }
 
-#Preview("更多") {
+#Preview("我的") {
     NavigationStack {
         MoreView()
     }
