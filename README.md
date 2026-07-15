@@ -1,6 +1,18 @@
 # Hanairo
 
-Hanairo 是使用 SwiftUI 与 Apple 系统框架实现的第三方 Pixiv 客户端。界面层只使用 SwiftUI 原生组件，不依赖第三方 UI 库。
+Hanairo 是使用 SwiftUI 与 Apple 系统框架实现的第三方 Pixiv 客户端，遵守液态玻璃设计风格。
+
+## 应用截图
+
+<p align="center">
+  <img src="docs/screenshots/01.png" alt="Hanairo 应用截图 1" width="20%">
+  <img src="docs/screenshots/02.png" alt="Hanairo 应用截图 2" width="20%">
+  <img src="docs/screenshots/03.png" alt="Hanairo 应用截图 3" width="20%">
+  <br>
+  <img src="docs/screenshots/04.png" alt="Hanairo 应用截图 4" width="20%">
+  <img src="docs/screenshots/05.png" alt="Hanairo 应用截图 5" width="20%">
+  <img src="docs/screenshots/06.png" alt="Hanairo 应用截图 6" width="20%">
+</p>
 
 ## 当前功能
 
