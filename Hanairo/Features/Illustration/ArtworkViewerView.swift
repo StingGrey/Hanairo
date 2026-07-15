@@ -5,15 +5,23 @@ struct ArtworkViewerView: View {
 
     let title: String
     let urls: [URL?]
+    let onDownload: (Int) -> String
 
     @State private var selectedPage: Int
     @State private var showsChrome = true
     @State private var isCurrentPageZoomed = false
     @State private var zoomResetToken = 0
+    @State private var downloadNotice: String?
 
-    init(title: String, urls: [URL?], initialPage: Int) {
+    init(
+        title: String,
+        urls: [URL?],
+        initialPage: Int,
+        onDownload: @escaping (Int) -> String
+    ) {
         self.title = title
         self.urls = urls.isEmpty ? [nil] : urls
+        self.onDownload = onDownload
         _selectedPage = State(initialValue: min(max(initialPage, 0), max(urls.count - 1, 0)))
     }
 
@@ -47,7 +55,8 @@ struct ArtworkViewerView: View {
                     .accessibilityLabel("关闭大图")
                 }
 
-                ToolbarItem(placement: .primaryAction) {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    downloadAction
                     shareAction
                 }
             }
@@ -58,11 +67,26 @@ struct ArtworkViewerView: View {
         .background(Color.black)
         .presentationBackground(.black)
         .environment(\.colorScheme, .dark)
+        .alert("下载任务", isPresented: downloadNoticeBinding) {
+            Button("好", role: .cancel) {}
+        } message: {
+            Text(downloadNotice ?? "未知状态")
+        }
         .onChange(of: selectedPage) {
             isCurrentPageZoomed = false
             zoomResetToken += 1
         }
         .animation(.easeOut(duration: 0.18), value: showsChrome)
+    }
+
+    private var downloadAction: some View {
+        Button {
+            downloadNotice = onDownload(selectedPage)
+        } label: {
+            Image(systemName: "arrow.down.to.line")
+        }
+        .disabled(urls[selectedPage] == nil)
+        .accessibilityLabel("下载当前图片")
     }
 
     @ViewBuilder
@@ -100,6 +124,13 @@ struct ArtworkViewerView: View {
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
         .scrollDisabled(isCurrentPageZoomed)
+    }
+
+    private var downloadNoticeBinding: Binding<Bool> {
+        Binding(
+            get: { downloadNotice != nil },
+            set: { if !$0 { downloadNotice = nil } }
+        )
     }
 
     private func toggleChrome() {

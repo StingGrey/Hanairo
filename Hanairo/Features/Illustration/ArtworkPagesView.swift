@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct ArtworkPagesView: View {
+    @Environment(ArtworkDownloadManager.self) private var downloadManager
+
     let illustration: PixivIllustration
     let displayURLs: [URL?]
     let fullSizeURLs: [URL?]
@@ -73,7 +75,13 @@ struct ArtworkPagesView: View {
         ArtworkViewerView(
             title: illustration.title,
             urls: fullSizeURLs,
-            initialPage: presentation.page
+            initialPage: presentation.page,
+            onDownload: { page in
+                downloadManager.enqueue(
+                    illustration: illustration,
+                    pageIndices: [page]
+                ).message
+            }
         )
     }
 
