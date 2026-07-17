@@ -5,7 +5,7 @@ struct ArtworkViewerView: View {
 
     let title: String
     let urls: [URL?]
-    let onDownload: (Int) -> String
+    let onDownload: ((Int) -> String)?
 
     @State private var selectedPage: Int
     @State private var showsChrome = true
@@ -17,7 +17,7 @@ struct ArtworkViewerView: View {
         title: String,
         urls: [URL?],
         initialPage: Int,
-        onDownload: @escaping (Int) -> String
+        onDownload: ((Int) -> String)? = nil
     ) {
         self.title = title
         self.urls = urls.isEmpty ? [nil] : urls
@@ -56,7 +56,15 @@ struct ArtworkViewerView: View {
                 }
 
                 ToolbarItemGroup(placement: .primaryAction) {
-                    downloadAction
+                    if let onDownload {
+                        Button {
+                            downloadNotice = onDownload(selectedPage)
+                        } label: {
+                            Image(systemName: "arrow.down.to.line")
+                        }
+                        .disabled(urls[selectedPage] == nil)
+                        .accessibilityLabel("下载当前图片")
+                    }
                     shareAction
                 }
             }
@@ -77,16 +85,6 @@ struct ArtworkViewerView: View {
             zoomResetToken += 1
         }
         .animation(.easeOut(duration: 0.18), value: showsChrome)
-    }
-
-    private var downloadAction: some View {
-        Button {
-            downloadNotice = onDownload(selectedPage)
-        } label: {
-            Image(systemName: "arrow.down.to.line")
-        }
-        .disabled(urls[selectedPage] == nil)
-        .accessibilityLabel("下载当前图片")
     }
 
     @ViewBuilder

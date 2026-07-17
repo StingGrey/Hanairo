@@ -6,7 +6,23 @@ struct TrendingTagsView: View {
     let tags: [PixivTrendingTag]
     let onSelect: (String) -> Void
 
+    @State private var previewTag: PixivTrendingTag?
+
     var body: some View {
+#if os(iOS)
+        tagsGrid
+            .fullScreenCover(item: $previewTag) { tag in
+                imageViewer(for: tag)
+            }
+#else
+        tagsGrid
+            .sheet(item: $previewTag) { tag in
+                imageViewer(for: tag)
+            }
+#endif
+    }
+
+    private var tagsGrid: some View {
         MasonryGrid(items: visibleTags, spacing: 12, estimatedHeight: { _ in 1 }) { tag in
             Button {
                 onSelect(tag.tag)
@@ -38,6 +54,11 @@ struct TrendingTagsView: View {
             }
             .buttonStyle(.plain)
             .contextMenu {
+                Button("查看大图", systemImage: "arrow.up.left.and.arrow.down.right") {
+                    previewTag = tag
+                }
+                .disabled(tag.illustration.imageURLs.fullSizeURL == nil)
+
                 Button("屏蔽此标签", systemImage: "number", role: .destructive) {
                     localBlocks.blockTag(
                         name: tag.tag,
@@ -46,6 +67,14 @@ struct TrendingTagsView: View {
                 }
             }
         }
+    }
+
+    private func imageViewer(for tag: PixivTrendingTag) -> some View {
+        ArtworkViewerView(
+            title: "#\(tag.tag)",
+            urls: [tag.illustration.imageURLs.fullSizeURL],
+            initialPage: 0
+        )
     }
 
     private var visibleTags: [PixivTrendingTag] {
