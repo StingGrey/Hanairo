@@ -107,14 +107,39 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
 
     steps:
+      - name: Checkout commit history
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
       - name: Download unsigned IPA
         uses: actions/download-artifact@v8
         with:
           name: Hanairo-iOS-unsigned-${{ github.run_number }}
           path: telegram-assets
+
+      - name: Generate commit summary
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          FALLBACK_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+
+          python3 .github/scripts/ci_commit_summary.py \
+            --current-sha "${TARGET_SHA}" \
+            --current-run-id "${GITHUB_RUN_ID}" \
+            --current-run-number "${GITHUB_RUN_NUMBER}" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --workflow "build-unsigned.yml" \
+            --fallback-sha "${FALLBACK_SHA}" \
+            --output "${RUNNER_TEMP}/commit-summary.txt" \
+            --chunks-directory "${RUNNER_TEMP}/telegram-commit-messages"
 
       - name: Send IPA to Telegram
         shell: bash
@@ -123,7 +148,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           REPOSITORY: ${{ github.repository }}
           REF_NAME: ${{ github.ref_name }}
-          COMMIT_SHA: ${{ github.sha }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           RUN_NUMBER: ${{ github.run_number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -144,6 +169,42 @@ jobs:
             echo "::error::找不到待发送的 IPA：${IPA_PATH}"
             exit 1
           fi
+
+          telegram_error_description() {
+            python3 -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8")).get("description", "未知错误"))' \
+              "$1" 2>/dev/null \
+              || echo "无法读取 Telegram API 错误响应"
+          }
+
+          shopt -s nullglob
+          SUMMARY_FILES=("${RUNNER_TEMP}"/telegram-commit-messages/message-*.txt)
+          if (( ${#SUMMARY_FILES[@]} == 0 )); then
+            echo "::error::找不到待发送的 Commit 汇总"
+            exit 1
+          fi
+
+          MESSAGE_INDEX=0
+          for SUMMARY_FILE in "${SUMMARY_FILES[@]}"; do
+            MESSAGE_INDEX=$((MESSAGE_INDEX + 1))
+            SUMMARY_TEXT="$(< "${SUMMARY_FILE}")"
+            SUMMARY_RESPONSE="${RUNNER_TEMP}/telegram-summary-${MESSAGE_INDEX}.json"
+
+            if ! curl \
+                --fail-with-body \
+                --silent \
+                --show-error \
+                --connect-timeout 15 \
+                --max-time 60 \
+                --request POST \
+                "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                --form-string "chat_id=${TELEGRAM_CHAT_ID}" \
+                --form-string "text=${SUMMARY_TEXT}" \
+                --output "${SUMMARY_RESPONSE}"; then
+              DESCRIPTION="$(telegram_error_description "${SUMMARY_RESPONSE}")"
+              echo "::error::Telegram API：${DESCRIPTION}"
+              exit 1
+            fi
+          done
 
           SHORT_SHA="${COMMIT_SHA:0:7}"
           CAPTION="$(printf 'Hanairo iOS CI 构建完成\n\n版本：%s\nCommit：%s\n构建：#%s\n仓库：%s\n详情：%s' \
@@ -166,16 +227,12 @@ jobs:
               --form "document=@${IPA_PATH};type=application/octet-stream" \
               --form-string "caption=${CAPTION}" \
               --output "${RESPONSE_FILE}"; then
-            DESCRIPTION="$(
-              python3 -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8")).get("description", "未知错误"))' \
-                "${RESPONSE_FILE}" 2>/dev/null \
-                || echo "无法读取 Telegram API 错误响应"
-            )"
+            DESCRIPTION="$(telegram_error_description "${RESPONSE_FILE}")"
             echo "::error::Telegram API：${DESCRIPTION}"
             exit 1
           fi
 
-          echo "IPA 已发送到 Telegram 频道。"
+          echo "Commit 汇总和 IPA 已发送到 Telegram 频道。"
 
   release:
     name: Create GitHub Release

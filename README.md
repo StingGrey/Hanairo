@@ -58,7 +58,7 @@ Hanairo/
 
 ### Telegram CI 发布
 
-每次 CI 成功生成 IPA 后，GitHub Actions 会通过 Telegram Bot 将 `Hanairo-iOS-unsigned.ipa` 直接发送到频道。外部 Fork 发起的 Pull Request 不会读取仓库 Secrets，因此只构建和保存产物，不会发送到频道。
+每次 CI 成功生成 IPA 后，GitHub Actions 会先汇总上一次成功编译到本次编译之间的每条 Commit（短 SHA、标题和作者），再通过 Telegram Bot 将汇总和 `Hanairo-iOS-unsigned.ipa` 直接发送到频道。Commit 较多时会自动拆分为多条 Telegram 消息。外部 Fork 发起的 Pull Request 不会读取仓库 Secrets，因此只构建和保存产物，不会发送到频道。
 
 配置方式：
 
