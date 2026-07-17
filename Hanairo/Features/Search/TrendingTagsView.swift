@@ -4,6 +4,7 @@ struct TrendingTagsView: View {
     @Environment(LocalBlockStore.self) private var localBlocks
     @Environment(PixivRepository.self) private var repository
     @Environment(ArtworkDownloadManager.self) private var downloadManager
+    @Environment(AppNavigationCoordinator.self) private var navigation
 
     let tags: [PixivTrendingTag]
     let onSelect: (String) -> Void
@@ -60,6 +61,10 @@ struct TrendingTagsView: View {
                     previewTag = tag
                 }
                 .disabled(tag.illustration.imageURLs.fullSizeURL == nil)
+
+                Button("查看作品详情", systemImage: "info.circle") {
+                    navigation.push(.illustration(id: tag.illustration.id))
+                }
 
                 Button("屏蔽此标签", systemImage: "number", role: .destructive) {
                     localBlocks.blockTag(
