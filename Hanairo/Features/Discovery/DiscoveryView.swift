@@ -49,17 +49,67 @@ struct DiscoveryView: View {
     }
 
     private var kindPicker: some View {
+        kindPickerSurface
+            .id(kindPickerRevision)
+            .padding(.horizontal)
+            .padding(.bottom, 12)
+            .zIndex(1)
+    }
+
+    @ViewBuilder
+    private var kindPickerSurface: some View {
+#if os(visionOS)
+        kindPickerControl
+#else
+        if #available(iOS 26.0, macOS 26.0, *) {
+            GlassEffectContainer(spacing: 12) {
+                HStack(spacing: 6) {
+                    ForEach(PixivAPI.RecommendationKind.allCases) { item in
+                        kindGlassButton(item)
+                    }
+                }
+            }
+        } else {
+            kindPickerControl
+        }
+#endif
+    }
+
+    @available(iOS 26.0, macOS 26.0, *)
+    @ViewBuilder
+    private func kindGlassButton(_ item: PixivAPI.RecommendationKind) -> some View {
+        if kind == item {
+            kindButton(item)
+                .buttonStyle(.glassProminent)
+        } else {
+            kindButton(item)
+                .buttonStyle(.glass)
+        }
+    }
+
+    private func kindButton(_ item: PixivAPI.RecommendationKind) -> some View {
+        Button {
+            guard kind != item else { return }
+            withAnimation(.snappy(duration: 0.24)) {
+                kind = item
+            }
+        } label: {
+            Text(item.title)
+                .font(.subheadline.weight(.medium))
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 36)
+        }
+        .buttonBorderShape(.capsule)
+        .accessibilityAddTraits(kind == item ? .isSelected : [])
+    }
+
+    private var kindPickerControl: some View {
         Picker("作品类型", selection: $kind) {
             ForEach(PixivAPI.RecommendationKind.allCases) { item in
                 Text(item.title).tag(item)
             }
         }
         .pickerStyle(.segmented)
-        .id(kindPickerRevision)
-        .padding(.horizontal)
-        .padding(.bottom, 12)
-        .background(.background)
-        .zIndex(1)
     }
 
     private var isAtDiscoveryRoot: Bool {

@@ -36,6 +36,9 @@ extension View {
             .environment(imageRepository)
             .environment(AppTheme(imageRepository: imageRepository))
             .environment(
+                AppUpdateChecker(client: NetworkClient(sessionProvider: sessionProvider))
+            )
+            .environment(
                 UgoiraRepository(
                     pixivRepository: repository,
                     settings: settings,

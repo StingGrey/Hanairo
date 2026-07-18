@@ -1,3 +1,4 @@
+import Foundation
 import Observation
 import SwiftUI
 
@@ -70,6 +71,7 @@ final class AppSettings {
     static let defaultProfileBackgroundScreenRatio = 0.56
     static let profileBackgroundScreenRatioRange = 0.45...1.0
     static let artworkGridColumnCountRange = 0...6
+    static let automaticUpdateCheckInterval: TimeInterval = 24 * 60 * 60
 
     var appearance: AppAppearance {
         didSet { defaults.set(appearance.rawValue, forKey: Keys.appearance) }
@@ -126,6 +128,30 @@ final class AppSettings {
                 homeQuickSaveOnLongPressEnabled,
                 forKey: Keys.homeQuickSaveOnLongPressEnabled
             )
+        }
+    }
+    var updateRemindersEnabled: Bool {
+        didSet { defaults.set(updateRemindersEnabled, forKey: Keys.updateRemindersEnabled) }
+    }
+    private(set) var lastAutomaticUpdateCheckDate: Date? {
+        didSet {
+            if let lastAutomaticUpdateCheckDate {
+                defaults.set(
+                    lastAutomaticUpdateCheckDate,
+                    forKey: Keys.lastAutomaticUpdateCheckDate
+                )
+            } else {
+                defaults.removeObject(forKey: Keys.lastAutomaticUpdateCheckDate)
+            }
+        }
+    }
+    private(set) var lastNotifiedUpdateTag: String? {
+        didSet {
+            if let lastNotifiedUpdateTag {
+                defaults.set(lastNotifiedUpdateTag, forKey: Keys.lastNotifiedUpdateTag)
+            } else {
+                defaults.removeObject(forKey: Keys.lastNotifiedUpdateTag)
+            }
         }
     }
     var showsAIArtwork: Bool {
@@ -214,6 +240,13 @@ final class AppSettings {
         homeQuickSaveOnLongPressEnabled = defaults.object(
             forKey: Keys.homeQuickSaveOnLongPressEnabled
         ) as? Bool ?? false
+        updateRemindersEnabled = defaults.object(
+            forKey: Keys.updateRemindersEnabled
+        ) as? Bool ?? true
+        lastAutomaticUpdateCheckDate = defaults.object(
+            forKey: Keys.lastAutomaticUpdateCheckDate
+        ) as? Date
+        lastNotifiedUpdateTag = defaults.string(forKey: Keys.lastNotifiedUpdateTag)
         showsAIArtwork = defaults.object(forKey: Keys.showsAIArtwork) as? Bool ?? true
         showsMatureArtwork = defaults.object(forKey: Keys.showsMatureArtwork) as? Bool ?? false
         recordsBrowsingHistory = defaults.object(forKey: Keys.recordsBrowsingHistory) as? Bool ?? true
@@ -238,6 +271,21 @@ final class AppSettings {
             defaultValue: Self.defaultUgoiraCacheLimitMB,
             range: Self.ugoiraCacheLimitRange
         )
+    }
+
+    func shouldAutomaticallyCheckForUpdates(now: Date = .now) -> Bool {
+        guard updateRemindersEnabled else { return false }
+        guard let lastAutomaticUpdateCheckDate else { return true }
+        return now.timeIntervalSince(lastAutomaticUpdateCheckDate)
+            >= Self.automaticUpdateCheckInterval
+    }
+
+    func recordAutomaticUpdateCheck(date: Date = .now) {
+        lastAutomaticUpdateCheckDate = date
+    }
+
+    func recordNotifiedUpdate(tag: String) {
+        lastNotifiedUpdateTag = tag
     }
 
     private static func storedCacheLimit(_ value: Int, defaultValue: Int, range: ClosedRange<Int>) -> Int {
@@ -276,6 +324,9 @@ final class AppSettings {
         static let downloadReadsImageCache = "settings.downloadReadsImageCache"
         static let bookmarksOnDownload = "settings.bookmarksOnDownload"
         static let homeQuickSaveOnLongPressEnabled = "settings.homeQuickSaveOnLongPressEnabled"
+        static let updateRemindersEnabled = "settings.updateRemindersEnabled"
+        static let lastAutomaticUpdateCheckDate = "settings.lastAutomaticUpdateCheckDate"
+        static let lastNotifiedUpdateTag = "settings.lastNotifiedUpdateTag"
         static let showsAIArtwork = "settings.showsAIArtwork"
         static let showsMatureArtwork = "settings.showsMatureArtwork"
         static let recordsBrowsingHistory = "settings.recordsBrowsingHistory"

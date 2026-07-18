@@ -13,6 +13,7 @@ struct HanairoApp: App {
     @State private var theme: AppTheme
     @State private var ugoiraRepository: UgoiraRepository
     @State private var downloadManager: ArtworkDownloadManager
+    @State private var updateChecker: AppUpdateChecker
 
     init() {
         let settings = AppSettings()
@@ -48,6 +49,9 @@ struct HanairoApp: App {
         _repository = State(initialValue: repository)
         _imageRepository = State(initialValue: imageRepository)
         _theme = State(initialValue: AppTheme(imageRepository: imageRepository))
+        _updateChecker = State(
+            initialValue: AppUpdateChecker(client: NetworkClient(sessionProvider: sessionProvider))
+        )
         _ugoiraRepository = State(
             initialValue: UgoiraRepository(
                 pixivRepository: repository,
@@ -77,6 +81,7 @@ struct HanairoApp: App {
                 .environment(repository)
                 .environment(imageRepository)
                 .environment(theme)
+                .environment(updateChecker)
                 .environment(ugoiraRepository)
                 .environment(downloadManager)
                 .preferredColorScheme(settings.appearance.colorScheme)

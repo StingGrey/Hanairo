@@ -28,12 +28,13 @@ struct NetworkClient {
     }
 
     private static func errorMessage(from data: Data) -> String {
-        guard
-            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let error = object["error"] as? [String: Any]
-        else {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return ""
         }
+        if let message = object["message"] as? String, !message.isEmpty {
+            return message
+        }
+        guard let error = object["error"] as? [String: Any] else { return "" }
         if let message = error["message"] as? String {
             return message
         }
