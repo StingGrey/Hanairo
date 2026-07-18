@@ -1,7 +1,10 @@
 # Hanairo
 
 Hanairo 是使用 SwiftUI 与 Apple 系统框架实现的第三方 Pixiv 客户端，遵守液态玻璃设计风格。
+
 此fork意在优化iPadOS适配，与符合个人功能需求
+
+Forked from [youshen2/Hanairo](https://github.com/youshen2/Hanairo)
 
 ## 应用截图
 
