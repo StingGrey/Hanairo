@@ -80,6 +80,14 @@ final class AppSettings {
     var previewImageQuality: ArtworkImageQuality {
         didSet { defaults.set(previewImageQuality.rawValue, forKey: Keys.previewImageQuality) }
     }
+    var highPerformanceImageDecodingEnabled: Bool {
+        didSet {
+            defaults.set(
+                highPerformanceImageDecodingEnabled,
+                forKey: Keys.highPerformanceImageDecodingEnabled
+            )
+        }
+    }
     var artworkGridColumnCount: Int {
         didSet { defaults.set(artworkGridColumnCount, forKey: Keys.artworkGridColumnCount) }
     }
@@ -166,6 +174,9 @@ final class AppSettings {
         previewImageQuality = ArtworkImageQuality(
             rawValue: defaults.string(forKey: Keys.previewImageQuality) ?? ""
         ) ?? .large
+        highPerformanceImageDecodingEnabled = defaults.object(
+            forKey: Keys.highPerformanceImageDecodingEnabled
+        ) as? Bool ?? true
         artworkGridColumnCount = Self.storedValue(
             defaults.object(forKey: Keys.artworkGridColumnCount) as? Int,
             defaultValue: 0,
@@ -252,6 +263,8 @@ final class AppSettings {
         static let appearance = "settings.appearance"
         static let imageQuality = "settings.imageQuality"
         static let previewImageQuality = "settings.previewImageQuality"
+        static let highPerformanceImageDecodingEnabled =
+            "settings.highPerformanceImageDecodingEnabled"
         static let artworkGridColumnCount = "settings.artworkGridColumnCount"
         static let artworkParallaxEnabled = "settings.artworkParallaxEnabled"
         static let profileBackgroundScreenRatio = "settings.profileBackgroundScreenRatio"

@@ -2,16 +2,20 @@ import SwiftUI
 
 struct RemoteImageView: View {
     @Environment(ImageRepository.self) private var imageRepository
+    @Environment(AppSettings.self) private var settings
+    @Environment(\.displayScale) private var displayScale
 
     let url: URL?
     var contentMode: ContentMode = .fill
 
     @State private var image: CGImage?
-    @State private var loadedURL: URL?
+    @State private var loadedRequest: RemoteImageRequest?
     @State private var didFail = false
 
     var body: some View {
         GeometryReader { proxy in
+            let request = imageRequest(for: proxy.size)
+
             ZStack {
                 Color.clear
 
@@ -33,29 +37,32 @@ struct RemoteImageView: View {
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
             .clipped()
+            .task(id: request) {
+                await load(request)
+            }
         }
         .clipped()
-        .task(id: url) {
-            await load()
-        }
     }
 
-    private func load() async {
-        if let url, loadedURL == url, image != nil {
+    private func load(_ request: RemoteImageRequest) async {
+        if loadedRequest == request, image != nil {
             return
         }
         image = nil
-        loadedURL = nil
+        loadedRequest = nil
         didFail = false
-        guard let url else {
+        guard let url = request.url else {
             didFail = true
             return
         }
         do {
-            let loadedImage = try await imageRepository.image(for: url)
+            let loadedImage = try await imageRepository.image(
+                for: url,
+                maxPixelSize: request.maxPixelSize
+            )
             guard !Task.isCancelled, self.url == url else { return }
             image = loadedImage
-            loadedURL = url
+            loadedRequest = request
         } catch is CancellationError {
             return
         } catch {
@@ -63,4 +70,27 @@ struct RemoteImageView: View {
             didFail = true
         }
     }
+
+    private func imageRequest(for size: CGSize) -> RemoteImageRequest {
+        guard settings.highPerformanceImageDecodingEnabled else {
+            return RemoteImageRequest(url: url, maxPixelSize: nil)
+        }
+        guard case .fill = contentMode else {
+            return RemoteImageRequest(url: url, maxPixelSize: nil)
+        }
+
+        let maximumPointSize = max(size.width, size.height)
+        guard maximumPointSize.isFinite, maximumPointSize > 0 else {
+            return RemoteImageRequest(url: url, maxPixelSize: nil)
+        }
+        let requiredPixels = max(Int(ceil(maximumPointSize * displayScale)), 1)
+        let bucketSize = 64
+        let bucketedPixels = ((requiredPixels + bucketSize - 1) / bucketSize) * bucketSize
+        return RemoteImageRequest(url: url, maxPixelSize: bucketedPixels)
+    }
+}
+
+private struct RemoteImageRequest: Hashable {
+    let url: URL?
+    let maxPixelSize: Int?
 }

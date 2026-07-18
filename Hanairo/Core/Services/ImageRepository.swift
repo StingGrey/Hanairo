@@ -5,12 +5,13 @@ import Observation
 @MainActor
 @Observable
 final class ImageRepository {
-    private var cache: [URL: CGImage] = [:]
-    private var insertionOrder: [URL] = []
+    private var cache: [ImageCacheKey: CGImage] = [:]
+    private var insertionOrder: [ImageCacheKey] = []
     private let sessionProvider: NetworkSessionProvider
     private let networkSettings: NetworkSettings
     private let diskCache: DiskCacheStore
     private let settings: AppSettings
+    private let decoder = ImageDecoder()
     private let capacity = 48
 
     init(
@@ -27,29 +28,30 @@ final class ImageRepository {
         )
     }
 
-    func image(for url: URL) async throws -> CGImage {
-        if let cached = cache[url] {
+    func image(for url: URL, maxPixelSize: Int? = nil) async throws -> CGImage {
+        let normalizedPixelSize = maxPixelSize.map { max($0, 1) }
+        let cacheKey = ImageCacheKey(url: url, maxPixelSize: normalizedPixelSize)
+        if let cached = cache[cacheKey] {
             return cached
         }
         let data = try await data(for: url)
-        guard
-            let source = CGImageSourceCreateWithData(data as CFData, nil),
-            let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
-        else {
-            throw NetworkError.invalidImage
-        }
+        let decodedImage = try await decoder.image(
+            from: data,
+            maxPixelSize: normalizedPixelSize
+        )
+        let image = decodedImage.value
         if cache.count >= capacity, let oldest = insertionOrder.first {
             cache[oldest] = nil
             insertionOrder.removeFirst()
         }
-        cache[url] = image
-        insertionOrder.append(url)
+        cache[cacheKey] = image
+        insertionOrder.append(cacheKey)
         return image
     }
 
     func data(for url: URL, bypassingCache: Bool = false) async throws -> Data {
         if !bypassingCache, let cachedData = await diskCache.data(forKey: url.absoluteString) {
-            if Self.isValidImageData(cachedData) {
+            if await decoder.isValidImageData(cachedData) {
                 return cachedData
             }
             await diskCache.removeValue(forKey: url.absoluteString)
@@ -72,7 +74,7 @@ final class ImageRepository {
         else {
             throw NetworkError.invalidImage
         }
-        guard Self.isValidImageData(data) else {
+        guard await decoder.isValidImageData(data) else {
             throw NetworkError.invalidImage
         }
         await diskCache.store(data, forKey: url.absoluteString)
@@ -93,10 +95,62 @@ final class ImageRepository {
         await diskCache.updateCapacityBytes(settings.imageCacheCapacityBytes)
     }
 
-    private static func isValidImageData(_ data: Data) -> Bool {
+}
+
+private actor ImageDecoder {
+    func isValidImageData(_ data: Data) -> Bool {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
             return false
         }
         return CGImageSourceGetCount(source) > 0
     }
+
+    func image(
+        from data: Data,
+        maxPixelSize: Int?
+    ) throws -> SendableCGImage {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+            throw NetworkError.invalidImage
+        }
+
+        let image: CGImage?
+        if let maxPixelSize {
+            let options: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+                kCGImageSourceShouldCache: true,
+                kCGImageSourceShouldCacheImmediately: true
+            ]
+            image = CGImageSourceCreateThumbnailAtIndex(
+                source,
+                0,
+                options as CFDictionary
+            )
+        } else {
+            let options: [CFString: Any] = [
+                kCGImageSourceShouldCache: true,
+                kCGImageSourceShouldCacheImmediately: true
+            ]
+            image = CGImageSourceCreateImageAtIndex(
+                source,
+                0,
+                options as CFDictionary
+            )
+        }
+
+        guard let image else {
+            throw NetworkError.invalidImage
+        }
+        return SendableCGImage(value: image)
+    }
+}
+
+private struct SendableCGImage: @unchecked Sendable {
+    let value: CGImage
+}
+
+private struct ImageCacheKey: Hashable {
+    let url: URL
+    let maxPixelSize: Int?
 }

@@ -53,10 +53,15 @@ struct AppearanceSettingsView: View {
                         Text(quality.title).tag(quality)
                     }
                 }
+
+                Toggle(
+                    "高性能图片解码",
+                    isOn: $settings.highPerformanceImageDecodingEnabled
+                )
             } header: {
                 Text("图片")
             } footer: {
-                Text("预览画质用于首页、排行和其他作品瀑布流；详情画质用于进入作品后的图片。原图地址不可用时会自动回退，已缓存内容不会重复下载。")
+                Text("预览画质用于首页、排行和其他作品瀑布流；详情画质用于进入作品后的图片。开启高性能解码后，预览图会在后台按显示尺寸解码，以减少滑动卡顿和内存占用；静态图片是否使用硬件加速由系统自动决定，详情大图不受影响。原图地址不可用时会自动回退，已缓存内容不会重复下载。")
             }
 
             Section {
