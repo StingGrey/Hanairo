@@ -6,11 +6,9 @@ struct DiscoveryView: View {
     @Environment(LocalBlockStore.self) private var localBlocks
     @Environment(AppSettings.self) private var settings
     @Environment(AppNavigationCoordinator.self) private var navigation
-    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
-    @Namespace private var kindSelectionNamespace
     @State private var kind: PixivAPI.RecommendationKind = .illustration
     @State private var kindPickerRevision = 0
     @State private var feed = PaginatedStore<PixivIllustration>(id: { $0.id })
@@ -19,7 +17,20 @@ struct DiscoveryView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            discoveryScrollContainer(viewportSize: proxy.size)
+            VStack(spacing: 0) {
+                kindPicker
+
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 20) {
+                        content(viewportSize: proxy.size)
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 24)
+                }
+                .refreshable {
+                    await refresh()
+                }
+            }
         }
         .navigationTitle("Hanairo")
         .toolbar { accountToolbar }
@@ -37,119 +48,18 @@ struct DiscoveryView: View {
         }
     }
 
-    @ViewBuilder
-    private func discoveryScrollContainer(viewportSize: CGSize) -> some View {
-#if os(visionOS)
-        VStack(spacing: 0) {
-            kindPicker
-            discoveryScrollView(viewportSize: viewportSize)
-        }
-#else
-        if #available(iOS 26.0, macOS 26.0, *) {
-            discoveryScrollView(viewportSize: viewportSize)
-                .safeAreaBar(edge: .top, spacing: 0) {
-                    kindPicker
-                }
-                .scrollEdgeEffectStyle(.soft, for: .top)
-        } else {
-            VStack(spacing: 0) {
-                kindPicker
-                discoveryScrollView(viewportSize: viewportSize)
-            }
-        }
-#endif
-    }
-
-    private func discoveryScrollView(viewportSize: CGSize) -> some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 20) {
-                content(viewportSize: viewportSize)
-            }
-            .padding(.horizontal)
-            .padding(.bottom, 24)
-        }
-        .refreshable {
-            await refresh()
-        }
-    }
-
     private var kindPicker: some View {
-        kindPickerSurface
-            .id(kindPickerRevision)
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity)
-            .background(.bar)
-            .zIndex(1)
-    }
-
-    @ViewBuilder
-    private var kindPickerSurface: some View {
-#if os(visionOS)
-        kindPickerControl
-#else
-        if #available(iOS 26.0, macOS 26.0, *) {
-            HStack(spacing: 0) {
-                ForEach(PixivAPI.RecommendationKind.allCases) { item in
-                    kindSegmentButton(item)
-                }
-            }
-            .padding(.horizontal, 4)
-            .frame(height: 44)
-            .background {
-                Capsule()
-                    .fill(Color.primary.opacity(0.08))
-                    .frame(height: 34)
-            }
-        } else {
-            kindPickerControl
-        }
-#endif
-    }
-
-    @available(iOS 26.0, macOS 26.0, *)
-    private func kindSegmentButton(_ item: PixivAPI.RecommendationKind) -> some View {
-        Button {
-            guard kind != item else { return }
-            if accessibilityReduceMotion {
-                kind = item
-            } else {
-                withAnimation(.smooth(duration: 0.22)) {
-                    kind = item
-                }
-            }
-        } label: {
-            ZStack {
-                if kind == item {
-                    Capsule()
-                        .fill(Color.accentColor.opacity(0.16))
-                        .frame(height: 28)
-                        .padding(.horizontal, 2)
-                        .matchedGeometryEffect(
-                            id: "discovery-kind-selection",
-                            in: kindSelectionNamespace
-                        )
-                }
-
-                Text(item.title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(kind == item ? .primary : .secondary)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 44)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(kind == item ? .isSelected : [])
-    }
-
-    private var kindPickerControl: some View {
         Picker("作品类型", selection: $kind) {
             ForEach(PixivAPI.RecommendationKind.allCases) { item in
                 Text(item.title).tag(item)
             }
         }
         .pickerStyle(.segmented)
+        .id(kindPickerRevision)
+        .padding(.horizontal)
+        .padding(.bottom, 12)
+        .background(.background)
+        .zIndex(1)
     }
 
     private var isAtDiscoveryRoot: Bool {
