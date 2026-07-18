@@ -69,12 +69,19 @@ final class AppSettings {
     static let browsingHistoryLimitRange = 50...1_000
     static let defaultProfileBackgroundScreenRatio = 0.56
     static let profileBackgroundScreenRatioRange = 0.45...1.0
+    static let artworkGridColumnCountRange = 0...6
 
     var appearance: AppAppearance {
         didSet { defaults.set(appearance.rawValue, forKey: Keys.appearance) }
     }
     var imageQuality: ArtworkImageQuality {
         didSet { defaults.set(imageQuality.rawValue, forKey: Keys.imageQuality) }
+    }
+    var previewImageQuality: ArtworkImageQuality {
+        didSet { defaults.set(previewImageQuality.rawValue, forKey: Keys.previewImageQuality) }
+    }
+    var artworkGridColumnCount: Int {
+        didSet { defaults.set(artworkGridColumnCount, forKey: Keys.artworkGridColumnCount) }
     }
     var artworkParallaxEnabled: Bool {
         didSet { defaults.set(artworkParallaxEnabled, forKey: Keys.artworkParallaxEnabled) }
@@ -156,6 +163,14 @@ final class AppSettings {
         self.defaults = defaults
         appearance = AppAppearance(rawValue: defaults.string(forKey: Keys.appearance) ?? "") ?? .system
         imageQuality = ArtworkImageQuality(rawValue: defaults.string(forKey: Keys.imageQuality) ?? "") ?? .large
+        previewImageQuality = ArtworkImageQuality(
+            rawValue: defaults.string(forKey: Keys.previewImageQuality) ?? ""
+        ) ?? .large
+        artworkGridColumnCount = Self.storedValue(
+            defaults.object(forKey: Keys.artworkGridColumnCount) as? Int,
+            defaultValue: 0,
+            range: Self.artworkGridColumnCountRange
+        )
         artworkParallaxEnabled = defaults.object(forKey: Keys.artworkParallaxEnabled) as? Bool ?? true
         profileBackgroundScreenRatio = Self.storedValue(
             defaults.object(forKey: Keys.profileBackgroundScreenRatio).map { _ in
@@ -236,6 +251,8 @@ final class AppSettings {
     private enum Keys {
         static let appearance = "settings.appearance"
         static let imageQuality = "settings.imageQuality"
+        static let previewImageQuality = "settings.previewImageQuality"
+        static let artworkGridColumnCount = "settings.artworkGridColumnCount"
         static let artworkParallaxEnabled = "settings.artworkParallaxEnabled"
         static let profileBackgroundScreenRatio = "settings.profileBackgroundScreenRatio"
         static let downloadDestination = "settings.downloadDestination"

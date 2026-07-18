@@ -124,7 +124,11 @@ struct PixivIllustration: Codable, Identifiable, Hashable, Sendable {
     }
 
     var previewURL: URL? {
-        imageURLs.large ?? imageURLs.medium ?? imageURLs.squareMedium
+        previewURL(for: .large)
+    }
+
+    func previewURL(for quality: ArtworkImageQuality) -> URL? {
+        pages.first?.url(for: quality) ?? imageURLs.url(for: quality)
     }
 
     var isUgoira: Bool {

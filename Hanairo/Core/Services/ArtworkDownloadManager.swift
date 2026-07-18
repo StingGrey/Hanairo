@@ -76,7 +76,7 @@ final class ArtworkDownloadManager {
                 illustrationID: illustration.id,
                 title: illustration.title,
                 artistName: illustration.user.name,
-                previewURL: illustration.previewURL,
+                previewURL: illustration.previewURL(for: settings.previewImageQuality),
                 pages: pages,
                 totalArtworkPageCount: illustration.pages.count,
                 destination: destination,

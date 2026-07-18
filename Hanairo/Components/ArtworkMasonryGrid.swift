@@ -2,17 +2,20 @@ import SwiftUI
 
 struct ArtworkMasonryGrid: View {
     @Environment(LocalBlockStore.self) private var localBlocks
+    @Environment(AppSettings.self) private var settings
 
     let illustrations: [PixivIllustration]
     var showsRanking = false
     var onLoadMore: (() async -> Void)?
     var enablesQuickSaveOnLongPress = false
+    var usesPreferredColumnCount = true
     let onBookmark: (Int) async -> Void
 
     var body: some View {
         MasonryGrid(
             items: items,
             spacing: 12,
+            preferredColumnCount: preferredColumnCount,
             estimatedHeight: { $0.estimatedHeight }
         ) { item in
             ArtworkCard(
@@ -32,6 +35,13 @@ struct ArtworkMasonryGrid: View {
 
     private var visibleIllustrations: [PixivIllustration] {
         illustrations.filter { !localBlocks.isBlocked($0) }
+    }
+
+    private var preferredColumnCount: Int? {
+        guard usesPreferredColumnCount, settings.artworkGridColumnCount > 0 else {
+            return nil
+        }
+        return settings.artworkGridColumnCount
     }
 
     private var items: [MasonryArtworkItem] {

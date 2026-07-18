@@ -42,6 +42,12 @@ struct AppearanceSettingsView: View {
             }
 
             Section {
+                Picker("预览画质", selection: $settings.previewImageQuality) {
+                    ForEach(ArtworkImageQuality.allCases) { quality in
+                        Text(quality.title).tag(quality)
+                    }
+                }
+
                 Picker("详情画质", selection: $settings.imageQuality) {
                     ForEach(ArtworkImageQuality.allCases) { quality in
                         Text(quality.title).tag(quality)
@@ -50,7 +56,20 @@ struct AppearanceSettingsView: View {
             } header: {
                 Text("图片")
             } footer: {
-                Text("画质设置会应用到之后加载的作品图片，已缓存内容不会重复下载。")
+                Text("预览画质用于首页、排行和其他作品瀑布流；详情画质用于进入作品后的图片。原图地址不可用时会自动回退，已缓存内容不会重复下载。")
+            }
+
+            Section {
+                Picker("列数", selection: $settings.artworkGridColumnCount) {
+                    Text("自动").tag(0)
+                    ForEach(1...6, id: \.self) { count in
+                        Text("\(count) 列").tag(count)
+                    }
+                }
+            } header: {
+                Text("作品瀑布流")
+            } footer: {
+                Text("自动模式会在紧凑窗口使用 2 列、宽屏使用 3 列；无障碍超大字号始终使用 1 列。")
             }
 
             Section {

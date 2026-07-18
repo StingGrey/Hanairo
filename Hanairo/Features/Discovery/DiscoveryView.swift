@@ -266,6 +266,7 @@ private struct RecommendedUserCard: View {
 
 private struct FeaturedArtworkView: View {
     @Environment(PixivRepository.self) private var repository
+    @Environment(AppSettings.self) private var settings
 
     let illustration: PixivIllustration
     let preferredHeight: CGFloat?
@@ -341,7 +342,9 @@ private struct FeaturedArtworkView: View {
     }
 
     private var imageWithOverlay: some View {
-        RemoteImageView(url: illustration.previewURL)
+        RemoteImageView(
+            url: illustration.previewURL(for: settings.previewImageQuality)
+        )
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .clipped()
             .overlay {

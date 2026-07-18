@@ -77,7 +77,9 @@ struct ArtworkCard: View {
     }
 
     private var artworkImage: some View {
-        RemoteImageView(url: illustration.previewURL)
+        RemoteImageView(
+            url: illustration.previewURL(for: settings.previewImageQuality)
+        )
             .aspectRatio(previewAspectRatio, contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .clipped()

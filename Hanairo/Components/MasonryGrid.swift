@@ -6,17 +6,20 @@ struct MasonryGrid<Item: Identifiable, Content: View>: View {
 
     let items: [Item]
     var spacing: CGFloat = 12
+    let preferredColumnCount: Int?
     let estimatedHeight: (Item) -> CGFloat
     let content: (Item) -> Content
 
     init(
         items: [Item],
         spacing: CGFloat = 12,
+        preferredColumnCount: Int? = nil,
         estimatedHeight: @escaping (Item) -> CGFloat,
         @ViewBuilder content: @escaping (Item) -> Content
     ) {
         self.items = items
         self.spacing = spacing
+        self.preferredColumnCount = preferredColumnCount
         self.estimatedHeight = estimatedHeight
         self.content = content
     }
@@ -37,6 +40,9 @@ struct MasonryGrid<Item: Identifiable, Content: View>: View {
     private var columnCount: Int {
         if dynamicTypeSize.isAccessibilitySize {
             return 1
+        }
+        if let preferredColumnCount, preferredColumnCount > 0 {
+            return preferredColumnCount
         }
         return horizontalSizeClass == .compact ? 2 : 3
     }

@@ -426,6 +426,7 @@ private struct RelatedArtworkSection: View {
                 ArtworkGrid(
                     illustrations: store.items,
                     onLoadMore: onLoadMore,
+                    usesPreferredColumnCount: false,
                     onBookmark: onBookmark
                 )
                 PaginationStatusView(
