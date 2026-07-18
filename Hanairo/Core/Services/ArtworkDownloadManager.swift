@@ -36,7 +36,8 @@ final class ArtworkDownloadManager {
 
     func enqueue(
         illustration: PixivIllustration,
-        pageIndices: [Int]
+        pageIndices: [Int],
+        appliesAutomaticBookmark: Bool = true
     ) -> ArtworkDownloadEnqueueResult {
         let destination = settings.downloadDestination
         if tasks.contains(where: {
@@ -89,7 +90,9 @@ final class ArtworkDownloadManager {
             )
         )
         saveTasks()
-        applyAutomaticBookmark(to: illustration)
+        if appliesAutomaticBookmark {
+            applyAutomaticBookmark(to: illustration)
+        }
         startIfNeeded()
         return .queued(pages.count)
     }

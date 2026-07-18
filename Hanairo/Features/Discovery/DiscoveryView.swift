@@ -4,6 +4,9 @@ struct DiscoveryView: View {
     @Environment(AuthenticationStore.self) private var authentication
     @Environment(PixivRepository.self) private var repository
     @Environment(LocalBlockStore.self) private var localBlocks
+    @Environment(AppSettings.self) private var settings
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @State private var kind: PixivAPI.RecommendationKind = .illustration
     @State private var feed = PaginatedStore<PixivIllustration>(id: { $0.id })
@@ -11,27 +14,29 @@ struct DiscoveryView: View {
     @State private var actionError: String?
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 20) {
-                Picker("作品类型", selection: $kind) {
-                    ForEach(PixivAPI.RecommendationKind.allCases) { item in
-                        Text(item.title).tag(item)
+        GeometryReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 20) {
+                    Picker("作品类型", selection: $kind) {
+                        ForEach(PixivAPI.RecommendationKind.allCases) { item in
+                            Text(item.title).tag(item)
+                        }
                     }
-                }
-                .pickerStyle(.segmented)
+                    .pickerStyle(.segmented)
 
-                content
+                    content(viewportSize: proxy.size)
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 24)
             }
-            .padding(.horizontal)
-            .padding(.bottom, 24)
+            .refreshable {
+                await refresh()
+            }
         }
         .navigationTitle("Hanairo")
         .toolbar { accountToolbar }
         .task(id: requestKey) {
             await loadIfNeeded()
-        }
-        .refreshable {
-            await refresh()
         }
         .alert("操作失败", isPresented: actionErrorBinding) {
             Button("好", role: .cancel) {}
@@ -69,7 +74,7 @@ struct DiscoveryView: View {
     }
 
     @ViewBuilder
-    private var content: some View {
+    private func content(viewportSize: CGSize) -> some View {
         switch feed.phase {
         case .idle, .loading:
             LoadingArtworkGrid()
@@ -83,7 +88,10 @@ struct DiscoveryView: View {
                 ContentUnavailableView("暂无推荐", systemImage: "sparkles")
                     .frame(minHeight: 360)
             } else {
-                FeaturedArtworkView(illustration: visibleFeedItems[0]) {
+                FeaturedArtworkView(
+                    illustration: visibleFeedItems[0],
+                    preferredHeight: featuredArtworkHeight(for: viewportSize)
+                ) {
                     await toggleBookmark(id: visibleFeedItems[0].id)
                 }
                 .task {
@@ -95,7 +103,8 @@ struct DiscoveryView: View {
                     .font(.title2.weight(.bold))
                 ArtworkMasonryGrid(
                     illustrations: Array(visibleFeedItems.dropFirst()),
-                    onLoadMore: loadMore
+                    onLoadMore: loadMore,
+                    enablesQuickSaveOnLongPress: settings.homeQuickSaveOnLongPressEnabled
                 ) { id in
                     await toggleBookmark(id: id)
                 }
@@ -106,6 +115,19 @@ struct DiscoveryView: View {
                 )
             }
         }
+    }
+
+    private func featuredArtworkHeight(for viewportSize: CGSize) -> CGFloat? {
+        guard
+            viewportSize.width >= 900,
+            viewportSize.width > viewportSize.height,
+            horizontalSizeClass != .compact,
+            !dynamicTypeSize.isAccessibilitySize
+        else {
+            return nil
+        }
+
+        return min(max(viewportSize.height * 0.52, 320), 420)
     }
 
     @ToolbarContentBuilder
@@ -246,27 +268,14 @@ private struct FeaturedArtworkView: View {
     @Environment(PixivRepository.self) private var repository
 
     let illustration: PixivIllustration
+    let preferredHeight: CGFloat?
     let onBookmark: () async -> Void
     @State private var isChangingBookmark = false
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             NavigationLink(value: AppRoute.illustration(id: illustration.id)) {
-                RemoteImageView(
-                    url: illustration.previewURL
-                )
-                .frame(maxWidth: .infinity)
-                .aspectRatio(illustration.aspectRatio > 0 ? illustration.aspectRatio : 0.75, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                .clipped()
-                .overlay {
-                    LinearGradient(
-                        colors: [.clear, .black.opacity(0.72)],
-                        startPoint: .center,
-                        endPoint: .bottom
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                }
+                featuredImage
             }
             .buttonStyle(.plain)
 
@@ -313,6 +322,36 @@ private struct FeaturedArtworkView: View {
 
     private var isBookmarked: Bool {
         repository.bookmarkState(for: illustration)
+    }
+
+    @ViewBuilder
+    private var featuredImage: some View {
+        if let preferredHeight {
+            imageWithOverlay
+                .frame(maxWidth: .infinity)
+                .frame(height: preferredHeight)
+        } else {
+            imageWithOverlay
+                .frame(maxWidth: .infinity)
+                .aspectRatio(
+                    illustration.aspectRatio > 0 ? illustration.aspectRatio : 0.75,
+                    contentMode: .fit
+                )
+        }
+    }
+
+    private var imageWithOverlay: some View {
+        RemoteImageView(url: illustration.previewURL)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .clipped()
+            .overlay {
+                LinearGradient(
+                    colors: [.clear, .black.opacity(0.72)],
+                    startPoint: .center,
+                    endPoint: .bottom
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            }
     }
 }
 

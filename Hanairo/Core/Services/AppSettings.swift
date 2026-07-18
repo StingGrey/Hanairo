@@ -105,6 +105,14 @@ final class AppSettings {
     var bookmarksOnDownload: Bool {
         didSet { defaults.set(bookmarksOnDownload, forKey: Keys.bookmarksOnDownload) }
     }
+    var homeQuickSaveOnLongPressEnabled: Bool {
+        didSet {
+            defaults.set(
+                homeQuickSaveOnLongPressEnabled,
+                forKey: Keys.homeQuickSaveOnLongPressEnabled
+            )
+        }
+    }
     var showsAIArtwork: Bool {
         didSet { defaults.set(showsAIArtwork, forKey: Keys.showsAIArtwork) }
     }
@@ -177,6 +185,9 @@ final class AppSettings {
         )
         downloadReadsImageCache = defaults.object(forKey: Keys.downloadReadsImageCache) as? Bool ?? true
         bookmarksOnDownload = defaults.object(forKey: Keys.bookmarksOnDownload) as? Bool ?? false
+        homeQuickSaveOnLongPressEnabled = defaults.object(
+            forKey: Keys.homeQuickSaveOnLongPressEnabled
+        ) as? Bool ?? false
         showsAIArtwork = defaults.object(forKey: Keys.showsAIArtwork) as? Bool ?? true
         showsMatureArtwork = defaults.object(forKey: Keys.showsMatureArtwork) as? Bool ?? false
         recordsBrowsingHistory = defaults.object(forKey: Keys.recordsBrowsingHistory) as? Bool ?? true
@@ -234,6 +245,7 @@ final class AppSettings {
         static let downloadRetryCount = "settings.downloadRetryCount"
         static let downloadReadsImageCache = "settings.downloadReadsImageCache"
         static let bookmarksOnDownload = "settings.bookmarksOnDownload"
+        static let homeQuickSaveOnLongPressEnabled = "settings.homeQuickSaveOnLongPressEnabled"
         static let showsAIArtwork = "settings.showsAIArtwork"
         static let showsMatureArtwork = "settings.showsMatureArtwork"
         static let recordsBrowsingHistory = "settings.recordsBrowsingHistory"

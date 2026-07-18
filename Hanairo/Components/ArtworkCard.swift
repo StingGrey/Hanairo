@@ -4,46 +4,39 @@ struct ArtworkCard: View {
     @Environment(PixivRepository.self) private var repository
     @Environment(LocalBlockStore.self) private var localBlocks
     @Environment(ArtworkDownloadManager.self) private var downloadManager
+    @Environment(AppSettings.self) private var settings
 
     let illustration: PixivIllustration
     var rank: Int?
     var previewAspectRatio: CGFloat = 0.78
+    var enablesQuickSaveOnLongPress = false
     let onBookmark: () async -> Void
 
     @State private var isChangingBookmark = false
+    @State private var isQuickSaving = false
     @State private var downloadNotice: String?
 
     var body: some View {
+        Group {
+            if enablesQuickSaveOnLongPress {
+                cardContent
+            } else {
+                cardContent
+                    .contextMenu { artworkContextMenu }
+            }
+        }
+        .alert("保存作品", isPresented: downloadNoticeBinding) {
+            Button("好", role: .cancel) {}
+        } message: {
+            Text(downloadNotice ?? "未知状态")
+        }
+    }
+
+    private var cardContent: some View {
         ZStack(alignment: .topTrailing) {
             NavigationLink(value: AppRoute.illustration(id: illustration.id)) {
                 VStack(alignment: .leading, spacing: 8) {
-                    RemoteImageView(
-                        url: illustration.previewURL
-                    )
-                    .aspectRatio(previewAspectRatio, contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .clipped()
-                    .overlay(alignment: .topLeading) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            if let rank {
-                                Text("#\(rank)")
-                                    .font(.caption.weight(.bold))
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 5)
-                                    .background(.black.opacity(0.62), in: Capsule())
-                            }
-                            if illustration.isUgoira {
-                                Label("动图", systemImage: "play.fill")
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 5)
-                                    .background(.black.opacity(0.62), in: Capsule())
-                            }
-                        }
-                        .padding(8)
-                    }
+                    interactiveArtworkImage
                     Text(illustration.title)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
@@ -60,37 +53,86 @@ struct ArtworkCard: View {
             .frame(maxWidth: .infinity)
 
             bookmarkButton
-                .disabled(isChangingBookmark)
+                .disabled(isChangingBookmark || isQuickSaving)
                 .padding(8)
                 .accessibilityLabel(isBookmarked ? "取消收藏" : "收藏")
         }
         .frame(maxWidth: .infinity)
         .clipped()
-        .contextMenu {
-            Button(downloadTitle, systemImage: "arrow.down.circle") {
-                enqueueDownload()
+    }
+
+    @ViewBuilder
+    private var interactiveArtworkImage: some View {
+        if enablesQuickSaveOnLongPress {
+            artworkImage
+                .onLongPressGesture(minimumDuration: 0.55) {
+                    quickSave()
+                }
+                .accessibilityAction(named: "下载全部图片并收藏") {
+                    quickSave()
+                }
+        } else {
+            artworkImage
+        }
+    }
+
+    private var artworkImage: some View {
+        RemoteImageView(url: illustration.previewURL)
+            .aspectRatio(previewAspectRatio, contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipped()
+            .overlay(alignment: .topLeading) {
+                VStack(alignment: .leading, spacing: 6) {
+                    if let rank {
+                        Text("#\(rank)")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(.black.opacity(0.62), in: Capsule())
+                    }
+                    if illustration.isUgoira {
+                        Label("动图", systemImage: "play.fill")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(.black.opacity(0.62), in: Capsule())
+                    }
+                }
+                .padding(8)
             }
-            Divider()
-            Button("屏蔽作品", systemImage: "photo.badge.minus", role: .destructive) {
-                localBlocks.block(artwork: illustration)
+            .overlay {
+                if isQuickSaving {
+                    ProgressView()
+                        .tint(.white)
+                        .padding(11)
+                        .background(.black.opacity(0.58), in: Circle())
+                        .accessibilityLabel("正在快速保存")
+                }
             }
-            Button("屏蔽作者", systemImage: "person.crop.circle.badge.minus", role: .destructive) {
-                localBlocks.block(user: illustration.user)
-            }
-            if !illustration.tags.isEmpty {
-                Menu("屏蔽标签", systemImage: "number") {
-                    ForEach(illustration.tags) { tag in
-                        Button("#\(tag.displayName)") {
-                            localBlocks.block(tag: tag)
-                        }
+    }
+
+    @ViewBuilder
+    private var artworkContextMenu: some View {
+        Button(downloadTitle, systemImage: "arrow.down.circle") {
+            enqueueDownload()
+        }
+        Divider()
+        Button("屏蔽作品", systemImage: "photo.badge.minus", role: .destructive) {
+            localBlocks.block(artwork: illustration)
+        }
+        Button("屏蔽作者", systemImage: "person.crop.circle.badge.minus", role: .destructive) {
+            localBlocks.block(user: illustration.user)
+        }
+        if !illustration.tags.isEmpty {
+            Menu("屏蔽标签", systemImage: "number") {
+                ForEach(illustration.tags) { tag in
+                    Button("#\(tag.displayName)") {
+                        localBlocks.block(tag: tag)
                     }
                 }
             }
-        }
-        .alert("下载", isPresented: downloadNoticeBinding) {
-            Button("好", role: .cancel) {}
-        } message: {
-            Text(downloadNotice ?? "未知状态")
         }
     }
 
@@ -110,6 +152,41 @@ struct ArtworkCard: View {
             illustration: illustration,
             pageIndices: Array(illustration.originalPageURLs.indices)
         ).message
+    }
+
+    private func quickSave() {
+        guard
+            enablesQuickSaveOnLongPress,
+            !isQuickSaving,
+            !isChangingBookmark
+        else {
+            return
+        }
+
+        isQuickSaving = true
+        let downloadMessage = downloadManager.enqueue(
+            illustration: illustration,
+            pageIndices: Array(illustration.originalPageURLs.indices),
+            appliesAutomaticBookmark: false
+        ).message
+        let needsBookmark = !isBookmarked
+
+        Task {
+            defer { isQuickSaving = false }
+            var bookmarkMessage = "作品已收藏"
+            if needsBookmark {
+                do {
+                    try await repository.updateBookmark(
+                        id: illustration.id,
+                        visibility: settings.defaultBookmarkVisibility,
+                        tags: []
+                    )
+                } catch {
+                    bookmarkMessage = "收藏失败：\(error.localizedDescription)"
+                }
+            }
+            downloadNotice = "\(downloadMessage)\n\(bookmarkMessage)"
+        }
     }
 
     private var isBookmarked: Bool {

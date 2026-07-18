@@ -45,6 +45,17 @@ struct DownloadSettingsView: View {
                 Text("自动收藏会使用默认收藏范围。正在运行的任务会在每页结束后响应暂停；应用重启后，未完成任务会恢复到等待状态。")
             }
 
+            Section {
+                Toggle(
+                    "推荐页长按快速保存",
+                    isOn: $settings.homeQuickSaveOnLongPressEnabled
+                )
+            } header: {
+                Text("快捷操作")
+            } footer: {
+                Text("开启后，长按推荐页瀑布流中的作品图片，会下载作品的全部页面并收藏。关闭后，长按仍显示下载与屏蔽菜单。")
+            }
+
             Section("下载管理") {
                 LabeledContent("下载记录", value: "\(downloadManager.records.count) 个")
                 if let storageUsage {

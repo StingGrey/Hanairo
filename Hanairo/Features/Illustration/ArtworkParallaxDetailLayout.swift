@@ -1,6 +1,9 @@
 import SwiftUI
 
 struct ArtworkParallaxDetailLayout<Foreground: View>: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
     let illustration: PixivIllustration
     let displayURLs: [URL?]
     let fullSizeURLs: [URL?]
@@ -25,7 +28,7 @@ struct ArtworkParallaxDetailLayout<Foreground: View>: View {
 
     @ViewBuilder
     var body: some View {
-        if isParallaxEnabled {
+        if isParallaxEnabled && horizontalSizeClass == .compact {
             detailLayout
 #if os(iOS)
                 .ignoresSafeArea(edges: .top)
@@ -37,38 +40,98 @@ struct ArtworkParallaxDetailLayout<Foreground: View>: View {
 
     private var detailLayout: some View {
         GeometryReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    ArtworkDetailPagesLayout(
-                        illustration: illustration,
-                        displayURLs: displayURLs,
-                        fullSizeURLs: fullSizeURLs,
-                        availableWidth: proxy.size.width,
-                        viewportHeight: proxy.size.height,
-                        scrollOffset: scrollOffset,
-                        isParallaxEnabled: isParallaxEnabled
-                    )
-                    .zIndex(0)
-
-                    foreground
-                        .padding(.top, isParallaxEnabled ? -32 : 20)
-                        .zIndex(1)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.bottom, 24)
+            if usesSplitLayout(availableWidth: proxy.size.width) {
+                splitLayout(in: proxy)
+            } else {
+                stackedLayout(in: proxy)
             }
-            .onScrollGeometryChange(for: CGFloat.self) { geometry in
-                geometry.contentOffset.y + geometry.contentInsets.top
-            } action: { _, newOffset in
-                scrollOffset = newOffset
-            }
-            .scrollEdgeEffectHidden(true, for: .top)
         }
         .background {
             ArtworkDetailSurface()
                 .ignoresSafeArea()
         }
         .scrollIndicators(.hidden)
+    }
+
+    private func stackedLayout(in proxy: GeometryProxy) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                ArtworkDetailPagesLayout(
+                    illustration: illustration,
+                    displayURLs: displayURLs,
+                    fullSizeURLs: fullSizeURLs,
+                    availableWidth: proxy.size.width,
+                    viewportHeight: proxy.size.height,
+                    scrollOffset: scrollOffset,
+                    isParallaxEnabled: isParallaxEnabled
+                )
+                .zIndex(0)
+
+                foreground
+                    .padding(.top, isParallaxEnabled ? -32 : 20)
+                    .zIndex(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.bottom, 24)
+        }
+        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+            geometry.contentOffset.y + geometry.contentInsets.top
+        } action: { _, newOffset in
+            scrollOffset = newOffset
+        }
+        .scrollEdgeEffectHidden(true, for: .top)
+    }
+
+    private func splitLayout(in proxy: GeometryProxy) -> some View {
+        let dividerWidth: CGFloat = 1
+        let sidebarWidth = splitSidebarWidth(availableWidth: proxy.size.width)
+        let mediaWidth = max(proxy.size.width - sidebarWidth - dividerWidth, 1)
+
+        return HStack(spacing: 0) {
+            ScrollView {
+                ArtworkDetailPagesLayout(
+                    illustration: illustration,
+                    displayURLs: displayURLs,
+                    fullSizeURLs: fullSizeURLs,
+                    availableWidth: mediaWidth,
+                    viewportHeight: proxy.size.height,
+                    scrollOffset: 0,
+                    isParallaxEnabled: false
+                )
+                .frame(minHeight: proxy.size.height, alignment: .center)
+            }
+            .frame(width: mediaWidth)
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollEdgeEffectHidden(true, for: .top)
+
+            Divider()
+                .frame(width: dividerWidth)
+
+            ScrollView {
+                foreground
+                    .padding(.top, 20)
+                    .padding(.bottom, 24)
+            }
+            .frame(width: sidebarWidth)
+            .environment(\.horizontalSizeClass, .compact)
+            .scrollEdgeEffectHidden(true, for: .top)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func usesSplitLayout(availableWidth: CGFloat) -> Bool {
+        availableWidth >= 900
+            && horizontalSizeClass != .compact
+            && !dynamicTypeSize.isAccessibilitySize
+            && prefersSplitLayoutForArtwork
+    }
+
+    private var prefersSplitLayoutForArtwork: Bool {
+        illustration.aspectRatio > 0 && illustration.aspectRatio <= 1.1
+    }
+
+    private func splitSidebarWidth(availableWidth: CGFloat) -> CGFloat {
+        min(max(availableWidth * 0.34, 340), 460)
     }
 }
 

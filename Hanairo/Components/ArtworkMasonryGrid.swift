@@ -6,6 +6,7 @@ struct ArtworkMasonryGrid: View {
     let illustrations: [PixivIllustration]
     var showsRanking = false
     var onLoadMore: (() async -> Void)?
+    var enablesQuickSaveOnLongPress = false
     let onBookmark: (Int) async -> Void
 
     var body: some View {
@@ -17,7 +18,8 @@ struct ArtworkMasonryGrid: View {
             ArtworkCard(
                 illustration: item.illustration,
                 rank: showsRanking ? item.position + 1 : nil,
-                previewAspectRatio: item.aspectRatio
+                previewAspectRatio: item.aspectRatio,
+                enablesQuickSaveOnLongPress: enablesQuickSaveOnLongPress
             ) {
                 await onBookmark(item.id)
             }
