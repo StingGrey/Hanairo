@@ -75,7 +75,7 @@ struct ArtworkCard: View {
             .zIndex(0)
 
             bookmarkButton
-                .padding(2)
+                .padding(8)
                 .accessibilityLabel(isBookmarked ? "取消收藏" : "收藏")
                 .zIndex(10)
         }
@@ -230,11 +230,13 @@ struct ArtworkCard: View {
 #if os(visionOS)
         bookmarkButtonContent
             .buttonStyle(.plain)
+            .controlSize(.small)
             .background(.regularMaterial, in: Circle())
 #else
         bookmarkButtonContent
             .buttonStyle(.glass)
             .buttonBorderShape(.circle)
+            .controlSize(.small)
 #endif
     }
 
@@ -248,14 +250,14 @@ struct ArtworkCard: View {
             }
         } label: {
             Image(systemName: isBookmarked ? "heart.fill" : "heart")
-                .font(.body.weight(.semibold))
+                .font(.callout.weight(.semibold))
                 .foregroundStyle(
                     isBookmarked
                         ? AnyShapeStyle(.tint)
                         : AnyShapeStyle(.primary)
                 )
-                .frame(width: 48, height: 48)
-                .contentShape(Circle())
+                .frame(width: 36, height: 36)
+                .contentShape(.interaction, Circle().inset(by: -6))
         }
     }
 }
