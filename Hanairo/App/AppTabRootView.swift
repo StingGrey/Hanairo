@@ -3,6 +3,7 @@ import SwiftUI
 struct AppTabRootView: View {
     let tab: AppTab
     @Environment(AppNavigationCoordinator.self) private var navigation
+    @Namespace private var artworkTransitionNamespace
 
     var body: some View {
         NavigationStack(path: pathBinding) {
@@ -11,6 +12,7 @@ struct AppTabRootView: View {
                     destination(for: route)
                 }
         }
+        .environment(\.artworkTransitionNamespace, artworkTransitionNamespace)
     }
 
     private var pathBinding: Binding<[AppRoute]> {

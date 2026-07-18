@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ArtworkCard: View {
+    @Environment(\.artworkTransitionNamespace) private var artworkTransitionNamespace
     @Environment(PixivRepository.self) private var repository
     @Environment(LocalBlockStore.self) private var localBlocks
     @Environment(ArtworkDownloadManager.self) private var downloadManager
@@ -128,6 +129,10 @@ struct ArtworkCard: View {
                         .accessibilityLabel("正在快速保存")
                 }
             }
+            .artworkTransitionSource(
+                id: illustration.id,
+                namespace: artworkTransitionNamespace
+            )
     }
 
     @ViewBuilder

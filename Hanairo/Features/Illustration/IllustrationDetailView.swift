@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 
 struct IllustrationDetailView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.artworkTransitionNamespace) private var artworkTransitionNamespace
     @Environment(AuthenticationStore.self) private var authentication
     @Environment(PixivRepository.self) private var repository
     @Environment(ImageRepository.self) private var imageRepository
@@ -65,8 +66,12 @@ struct IllustrationDetailView: View {
                 detailContent(illustration)
             }
         }
-        .navigationTitle(navigationTitle)
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        .artworkNavigationTransition(
+            id: illustrationID,
+            namespace: artworkTransitionNamespace
+        )
         .tint(artworkAccentColor ?? theme.accentColor)
         .toolbar {
             if case let .loaded(illustration) = state {
@@ -206,13 +211,6 @@ struct IllustrationDetailView: View {
             }
             .padding(.horizontal)
         }
-    }
-
-    private var navigationTitle: String {
-        if case .loaded = state {
-            return ""
-        }
-        return "作品详情"
     }
 
     private var artworkThemeImageURL: URL? {
