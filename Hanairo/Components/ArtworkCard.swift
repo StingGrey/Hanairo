@@ -6,6 +6,7 @@ struct ArtworkCard: View {
     @Environment(LocalBlockStore.self) private var localBlocks
     @Environment(ArtworkDownloadManager.self) private var downloadManager
     @Environment(AppSettings.self) private var settings
+    @Environment(AppNavigationCoordinator.self) private var navigation
 
     let illustration: PixivIllustration
     var rank: Int?
@@ -35,43 +36,48 @@ struct ArtworkCard: View {
 
     private var cardContent: some View {
         ZStack(alignment: .topTrailing) {
-            NavigationLink(value: AppRoute.illustration(id: illustration.id)) {
-                VStack(alignment: .leading, spacing: 8) {
-                    interactiveArtworkImage
-                    Text(illustration.title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
+            VStack(alignment: .leading, spacing: 8) {
+                interactiveArtworkImage
+                Text(illustration.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(illustration.user.name)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
-                    HStack(spacing: 6) {
-                        Text(illustration.user.name)
-                            .font(.caption)
+
+                    Spacer(minLength: 0)
+
+                    if illustration.aiType == 2 {
+                        Text("AI")
+                            .font(.caption2.weight(.bold))
                             .foregroundStyle(.secondary)
-                            .lineLimit(1)
-
-                        Spacer(minLength: 0)
-
-                        if illustration.aiType == 2 {
-                            Text("AI")
-                                .font(.caption2.weight(.bold))
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 3)
-                                .background(.secondary.opacity(0.12), in: Capsule())
-                                .fixedSize()
-                                .accessibilityLabel("AI 生成作品")
-                        }
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(.secondary.opacity(0.12), in: Capsule())
+                            .fixedSize()
+                            .accessibilityLabel("AI 生成作品")
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                openArtwork()
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction(named: "打开作品") {
+                openArtwork()
+            }
+            .zIndex(0)
 
             bookmarkButton
-                .disabled(isChangingBookmark || isQuickSaving)
-                .padding(8)
+                .padding(2)
                 .accessibilityLabel(isBookmarked ? "取消收藏" : "收藏")
+                .zIndex(10)
         }
         .frame(maxWidth: .infinity)
         .clipped()
@@ -215,9 +221,13 @@ struct ArtworkCard: View {
         repository.bookmarkState(for: illustration)
     }
 
+    private func openArtwork() {
+        navigation.push(.illustration(id: illustration.id))
+    }
+
     private var bookmarkButton: some View {
         Button {
-            guard !isChangingBookmark else { return }
+            guard !isChangingBookmark, !isQuickSaving else { return }
             isChangingBookmark = true
             Task {
                 await onBookmark()
@@ -232,8 +242,10 @@ struct ArtworkCard: View {
                         : AnyShapeStyle(.white)
                 )
                 .frame(width: 36, height: 36)
+                .background(.black.opacity(0.45), in: Circle())
+                .frame(width: 48, height: 48)
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .background(.black.opacity(0.45), in: Circle())
     }
 }
