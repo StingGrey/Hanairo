@@ -47,13 +47,13 @@ struct DownloadSettingsView: View {
 
             Section {
                 Toggle(
-                    "推荐页长按快速保存",
+                    "作品卡片长按快速保存",
                     isOn: $settings.homeQuickSaveOnLongPressEnabled
                 )
             } header: {
                 Text("快捷操作")
             } footer: {
-                Text("开启后，长按推荐页瀑布流中的作品图片，会下载作品的全部页面并收藏。关闭后，长按仍显示下载与屏蔽菜单。")
+                Text("开启后，长按各处作品列表中的图片，会下载作品的全部页面并收藏。关闭后，长按仍显示下载与屏蔽菜单。")
             }
 
             Section("下载管理") {

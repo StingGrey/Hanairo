@@ -11,7 +11,6 @@ struct ArtworkCard: View {
     let illustration: PixivIllustration
     var rank: Int?
     var previewAspectRatio: CGFloat = 0.78
-    var enablesQuickSaveOnLongPress = false
     let onBookmark: () async -> Void
 
     @State private var isChangingBookmark = false
@@ -231,6 +230,10 @@ struct ArtworkCard: View {
 
     private var isBookmarked: Bool {
         repository.bookmarkState(for: illustration)
+    }
+
+    private var enablesQuickSaveOnLongPress: Bool {
+        settings.homeQuickSaveOnLongPressEnabled
     }
 
     private func openArtwork() {

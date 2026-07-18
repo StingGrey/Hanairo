@@ -5,32 +5,31 @@ struct DiscoveryView: View {
     @Environment(PixivRepository.self) private var repository
     @Environment(LocalBlockStore.self) private var localBlocks
     @Environment(AppSettings.self) private var settings
+    @Environment(AppNavigationCoordinator.self) private var navigation
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @State private var kind: PixivAPI.RecommendationKind = .illustration
+    @State private var kindPickerRevision = 0
     @State private var feed = PaginatedStore<PixivIllustration>(id: { $0.id })
     @State private var recommendedUsers = PaginatedStore<PixivUserPreview>(id: { $0.id })
     @State private var actionError: String?
 
     var body: some View {
         GeometryReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 20) {
-                    Picker("作品类型", selection: $kind) {
-                        ForEach(PixivAPI.RecommendationKind.allCases) { item in
-                            Text(item.title).tag(item)
-                        }
-                    }
-                    .pickerStyle(.segmented)
+            VStack(spacing: 0) {
+                kindPicker
 
-                    content(viewportSize: proxy.size)
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 20) {
+                        content(viewportSize: proxy.size)
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 24)
                 }
-                .padding(.horizontal)
-                .padding(.bottom, 24)
-            }
-            .refreshable {
-                await refresh()
+                .refreshable {
+                    await refresh()
+                }
             }
         }
         .navigationTitle("Hanairo")
@@ -38,11 +37,33 @@ struct DiscoveryView: View {
         .task(id: requestKey) {
             await loadIfNeeded()
         }
+        .onChange(of: isAtDiscoveryRoot) {
+            guard isAtDiscoveryRoot else { return }
+            kindPickerRevision += 1
+        }
         .alert("操作失败", isPresented: actionErrorBinding) {
             Button("好", role: .cancel) {}
         } message: {
             Text(displayedError ?? "未知错误")
         }
+    }
+
+    private var kindPicker: some View {
+        Picker("作品类型", selection: $kind) {
+            ForEach(PixivAPI.RecommendationKind.allCases) { item in
+                Text(item.title).tag(item)
+            }
+        }
+        .pickerStyle(.segmented)
+        .id(kindPickerRevision)
+        .padding(.horizontal)
+        .padding(.bottom, 12)
+        .background(.background)
+        .zIndex(1)
+    }
+
+    private var isAtDiscoveryRoot: Bool {
+        navigation.path(for: .discovery).isEmpty
     }
 
     @ViewBuilder
@@ -103,8 +124,7 @@ struct DiscoveryView: View {
                     .font(.title2.weight(.bold))
                 ArtworkMasonryGrid(
                     illustrations: Array(visibleFeedItems.dropFirst()),
-                    onLoadMore: loadMore,
-                    enablesQuickSaveOnLongPress: settings.homeQuickSaveOnLongPressEnabled
+                    onLoadMore: loadMore
                 ) { id in
                     await toggleBookmark(id: id)
                 }
@@ -265,6 +285,7 @@ private struct RecommendedUserCard: View {
 }
 
 private struct FeaturedArtworkView: View {
+    @Environment(\.artworkTransitionNamespace) private var artworkTransitionNamespace
     @Environment(PixivRepository.self) private var repository
     @Environment(AppSettings.self) private var settings
 
@@ -277,6 +298,10 @@ private struct FeaturedArtworkView: View {
         ZStack(alignment: .bottomLeading) {
             NavigationLink(value: AppRoute.illustration(id: illustration.id)) {
                 featuredImage
+                    .artworkTransitionSource(
+                        id: illustration.id,
+                        namespace: artworkTransitionNamespace
+                    )
             }
             .buttonStyle(.plain)
 
