@@ -17,5 +17,7 @@ struct AppShellView: View {
                 AppTabRootView(tab: .search)
             }
         }
+        .toolbarBackground(.bar, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
     }
 }

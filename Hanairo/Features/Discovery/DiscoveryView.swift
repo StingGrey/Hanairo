@@ -19,21 +19,7 @@ struct DiscoveryView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            ZStack(alignment: .top) {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 20) {
-                        content(viewportSize: proxy.size)
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 56)
-                    .padding(.bottom, 24)
-                }
-                .refreshable {
-                    await refresh()
-                }
-
-                kindPicker
-            }
+            discoveryScrollContainer(viewportSize: proxy.size)
         }
         .navigationTitle("Hanairo")
         .toolbar { accountToolbar }
@@ -51,11 +37,49 @@ struct DiscoveryView: View {
         }
     }
 
+    @ViewBuilder
+    private func discoveryScrollContainer(viewportSize: CGSize) -> some View {
+#if os(visionOS)
+        VStack(spacing: 0) {
+            kindPicker
+            discoveryScrollView(viewportSize: viewportSize)
+        }
+#else
+        if #available(iOS 26.0, macOS 26.0, *) {
+            discoveryScrollView(viewportSize: viewportSize)
+                .safeAreaBar(edge: .top, spacing: 0) {
+                    kindPicker
+                }
+                .scrollEdgeEffectStyle(.soft, for: .top)
+        } else {
+            VStack(spacing: 0) {
+                kindPicker
+                discoveryScrollView(viewportSize: viewportSize)
+            }
+        }
+#endif
+    }
+
+    private func discoveryScrollView(viewportSize: CGSize) -> some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 20) {
+                content(viewportSize: viewportSize)
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 24)
+        }
+        .refreshable {
+            await refresh()
+        }
+    }
+
     private var kindPicker: some View {
         kindPickerSurface
             .id(kindPickerRevision)
             .padding(.horizontal)
-            .padding(.bottom, 12)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity)
+            .background(.bar)
             .zIndex(1)
     }
 
@@ -72,7 +96,11 @@ struct DiscoveryView: View {
             }
             .padding(.horizontal, 4)
             .frame(height: 44)
-            .glassEffect(.regular.interactive(), in: .capsule)
+            .background {
+                Capsule()
+                    .fill(Color.primary.opacity(0.08))
+                    .frame(height: 34)
+            }
         } else {
             kindPickerControl
         }
