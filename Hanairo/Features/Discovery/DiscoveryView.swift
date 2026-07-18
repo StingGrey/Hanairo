@@ -6,9 +6,11 @@ struct DiscoveryView: View {
     @Environment(LocalBlockStore.self) private var localBlocks
     @Environment(AppSettings.self) private var settings
     @Environment(AppNavigationCoordinator.self) private var navigation
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
+    @Namespace private var kindSelectionNamespace
     @State private var kind: PixivAPI.RecommendationKind = .illustration
     @State private var kindPickerRevision = 0
     @State private var feed = PaginatedStore<PixivIllustration>(id: { $0.id })
@@ -17,19 +19,20 @@ struct DiscoveryView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            VStack(spacing: 0) {
-                kindPicker
-
+            ZStack(alignment: .top) {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 20) {
                         content(viewportSize: proxy.size)
                     }
                     .padding(.horizontal)
+                    .padding(.top, 56)
                     .padding(.bottom, 24)
                 }
                 .refreshable {
                     await refresh()
                 }
+
+                kindPicker
             }
         }
         .navigationTitle("Hanairo")
@@ -62,13 +65,14 @@ struct DiscoveryView: View {
         kindPickerControl
 #else
         if #available(iOS 26.0, macOS 26.0, *) {
-            GlassEffectContainer(spacing: 12) {
-                HStack(spacing: 6) {
-                    ForEach(PixivAPI.RecommendationKind.allCases) { item in
-                        kindGlassButton(item)
-                    }
+            HStack(spacing: 0) {
+                ForEach(PixivAPI.RecommendationKind.allCases) { item in
+                    kindSegmentButton(item)
                 }
             }
+            .padding(.horizontal, 4)
+            .frame(height: 44)
+            .glassEffect(.regular.interactive(), in: .capsule)
         } else {
             kindPickerControl
         }
@@ -76,30 +80,38 @@ struct DiscoveryView: View {
     }
 
     @available(iOS 26.0, macOS 26.0, *)
-    @ViewBuilder
-    private func kindGlassButton(_ item: PixivAPI.RecommendationKind) -> some View {
-        if kind == item {
-            kindButton(item)
-                .buttonStyle(.glassProminent)
-        } else {
-            kindButton(item)
-                .buttonStyle(.glass)
-        }
-    }
-
-    private func kindButton(_ item: PixivAPI.RecommendationKind) -> some View {
+    private func kindSegmentButton(_ item: PixivAPI.RecommendationKind) -> some View {
         Button {
             guard kind != item else { return }
-            withAnimation(.snappy(duration: 0.24)) {
+            if accessibilityReduceMotion {
                 kind = item
+            } else {
+                withAnimation(.smooth(duration: 0.22)) {
+                    kind = item
+                }
             }
         } label: {
-            Text(item.title)
-                .font(.subheadline.weight(.medium))
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 36)
+            ZStack {
+                if kind == item {
+                    Capsule()
+                        .fill(Color.accentColor.opacity(0.16))
+                        .frame(height: 28)
+                        .padding(.horizontal, 2)
+                        .matchedGeometryEffect(
+                            id: "discovery-kind-selection",
+                            in: kindSelectionNamespace
+                        )
+                }
+
+                Text(item.title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(kind == item ? .primary : .secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 44)
+            .contentShape(Rectangle())
         }
-        .buttonBorderShape(.capsule)
+        .buttonStyle(.plain)
         .accessibilityAddTraits(kind == item ? .isSelected : [])
     }
 
