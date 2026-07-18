@@ -225,7 +225,20 @@ struct ArtworkCard: View {
         navigation.push(.illustration(id: illustration.id))
     }
 
+    @ViewBuilder
     private var bookmarkButton: some View {
+#if os(visionOS)
+        bookmarkButtonContent
+            .buttonStyle(.plain)
+            .background(.regularMaterial, in: Circle())
+#else
+        bookmarkButtonContent
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+#endif
+    }
+
+    private var bookmarkButtonContent: some View {
         Button {
             guard !isChangingBookmark, !isQuickSaving else { return }
             isChangingBookmark = true
@@ -239,13 +252,10 @@ struct ArtworkCard: View {
                 .foregroundStyle(
                     isBookmarked
                         ? AnyShapeStyle(.tint)
-                        : AnyShapeStyle(.white)
+                        : AnyShapeStyle(.primary)
                 )
-                .frame(width: 36, height: 36)
-                .background(.black.opacity(0.45), in: Circle())
                 .frame(width: 48, height: 48)
                 .contentShape(Circle())
         }
-        .buttonStyle(.plain)
     }
 }
