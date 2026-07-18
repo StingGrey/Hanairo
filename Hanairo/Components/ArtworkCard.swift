@@ -38,10 +38,22 @@ struct ArtworkCard: View {
         ZStack(alignment: .topTrailing) {
             VStack(alignment: .leading, spacing: 8) {
                 interactiveArtworkImage
-                Text(illustration.title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(illustration.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+
+                    Spacer(minLength: 0)
+
+                    if illustration.pageCount > 1 {
+                        Text("\(illustration.pageCount)")
+                            .font(.caption.monospacedDigit().weight(.medium))
+                            .foregroundStyle(.secondary)
+                            .fixedSize()
+                            .accessibilityLabel("共 \(illustration.pageCount) 页")
+                    }
+                }
                 HStack(spacing: 6) {
                     Text(illustration.user.name)
                         .font(.caption)
