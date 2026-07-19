@@ -73,15 +73,15 @@ struct ArtworkCard: View {
                     }
                 }
                 HStack(spacing: 8) {
-                    Label("插画 \(illustration.id)", systemImage: "photo")
-                    Label("画师 \(illustration.user.id)", systemImage: "person")
+                    Label("插画 \(String(illustration.id))", systemImage: "photo")
+                    Label("画师 \(String(illustration.user.id))", systemImage: "person")
                 }
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(.tertiary)
                 .lineLimit(1)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(
-                    "插画 ID \(illustration.id)，画师 ID \(illustration.user.id)"
+                    "插画 ID \(String(illustration.id))，画师 ID \(String(illustration.user.id))"
                 )
             }
             .frame(maxWidth: .infinity, alignment: .leading)

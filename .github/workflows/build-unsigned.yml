@@ -90,7 +90,7 @@ jobs:
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v7
         with:
-          name: Hanairo-iOS-unsigned-${{ github.run_number }}
           path: build/Hanairo-iOS-unsigned.ipa
+          archive: false
           if-no-files-found: error
           retention-days: 14

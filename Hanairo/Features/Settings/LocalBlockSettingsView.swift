@@ -39,7 +39,7 @@ struct LocalBlockSettingsView: View {
             if !localBlocks.users.isEmpty {
                 Section("作者") {
                     ForEach(localBlocks.users) { user in
-                        LabeledContent(user.name, value: "ID \(user.id)")
+                        LabeledContent(user.name, value: "ID \(String(user.id))")
                     }
                     .onDelete { offsets in
                         offsets.map { localBlocks.users[$0].id }
@@ -51,7 +51,7 @@ struct LocalBlockSettingsView: View {
             if !localBlocks.artworks.isEmpty {
                 Section("作品") {
                     ForEach(localBlocks.artworks) { artwork in
-                        LabeledContent(artwork.title, value: "ID \(artwork.id)")
+                        LabeledContent(artwork.title, value: "ID \(String(artwork.id))")
                     }
                     .onDelete { offsets in
                         offsets.map { localBlocks.artworks[$0].id }
