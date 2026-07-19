@@ -98,7 +98,8 @@ private struct IllustrationTitleSection: View {
         if !illustration.createDate.isEmpty {
             Label(String(illustration.createDate.prefix(10)), systemImage: "calendar")
         }
-        Text("ID \(illustration.id)")
+        Text("插画 ID \(illustration.id)")
+            .textSelection(.enabled)
         if illustration.pageCount > 1 {
             Label("\(illustration.pageCount) 页", systemImage: "rectangle.stack")
         }
@@ -122,9 +123,11 @@ private struct IllustrationArtistLink: View {
                     Text(user.name)
                         .font(.headline)
                         .foregroundStyle(.primary)
-                    Text("@\(user.account)")
+                    Text("@\(user.account) · 画师 ID \(user.id)")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .textSelection(.enabled)
                 }
                 Spacer()
                 Image(systemName: "chevron.right")

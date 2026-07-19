@@ -39,6 +39,7 @@ struct UserProfileDetailsView: View {
 
                     ForEach(profileRows, id: \.label) { row in
                         LabeledContent(row.label, value: row.value)
+                            .textSelection(.enabled)
                     }
                     if !profileLinks.isEmpty {
                         profileLinkButtons
@@ -132,6 +133,7 @@ struct UserProfileDetailsView: View {
 
     private var profileRows: [ProfileRow] {
         [
+            ProfileRow(label: "画师 ID", value: String(detail.user.id)),
             profileRow(label: "地区", value: detail.profile.region),
             profileRow(label: "职业", value: detail.profile.job),
             profileRow(label: "生日", value: detail.profile.birth)

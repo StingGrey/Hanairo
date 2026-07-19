@@ -47,6 +47,12 @@ struct UserProfileHeaderView: View {
             profileNameControl
                 .padding(.top, 80)
 
+            Text("@\(detail.user.account) · 画师 ID \(detail.user.id)")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .textSelection(.enabled)
+
             if !isCurrentUser {
                 FollowButton(user: detail.user, usesGlass: true)
                     .frame(height: 38)

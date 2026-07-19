@@ -77,6 +77,10 @@ final class SearchStore {
         query.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    var idQueries: [PixivIDSearchQuery] {
+        PixivIDSearchParser.parse(normalizedQuery)
+    }
+
     var displayedError: String? {
         actionError ?? activeRefreshError
     }
@@ -94,7 +98,7 @@ final class SearchStore {
 
     func loadSuggestions(suggestionKey: String, using repository: PixivRepository) async {
         let term = normalizedQuery
-        guard scope == .illustrations, !term.isEmpty else {
+        guard scope == .illustrations, !term.isEmpty, idQueries.isEmpty else {
             suggestions = []
             return
         }
@@ -119,14 +123,14 @@ final class SearchStore {
     }
 
     var suggestionRequestKey: String {
-        "\(scope.rawValue)|\(normalizedQuery)"
+        "\(scope.rawValue)|\(normalizedQuery)|\(idQueries.map { $0.id }.joined(separator: ","))"
     }
 
     func searchIfNeeded(requestKey: String, using repository: PixivRepository) async {
         let term = normalizedQuery
         let activeScope = scope
         let activeOptions = options
-        guard !term.isEmpty else { return }
+        guard !term.isEmpty, idQueries.isEmpty else { return }
         switch activeScope {
         case .illustrations:
             illustrationResults.prepare(for: requestKey)
@@ -170,7 +174,7 @@ final class SearchStore {
         let term = normalizedQuery
         let activeScope = scope
         let activeOptions = options
-        guard !term.isEmpty else { return }
+        guard !term.isEmpty, idQueries.isEmpty else { return }
         switch activeScope {
         case .illustrations:
             await illustrationResults.reload(requestKey: requestKey, showsInitialLoading: true) {
@@ -187,6 +191,7 @@ final class SearchStore {
         let term = normalizedQuery
         let activeScope = scope
         let activeOptions = options
+        guard idQueries.isEmpty else { return }
         guard !term.isEmpty else {
             await loadTrending(using: repository, force: true)
             return
@@ -204,6 +209,7 @@ final class SearchStore {
     }
 
     func loadMore(requestKey: String, using repository: PixivRepository) async {
+        guard idQueries.isEmpty else { return }
         let activeOptions = options
         switch scope {
         case .illustrations:

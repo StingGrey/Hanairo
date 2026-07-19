@@ -22,6 +22,9 @@ struct UserRow: View {
                             Text("@\(preview.user.account)")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
+                            Text("画师 ID \(preview.user.id)")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.tertiary)
                             if let work = preview.illustrations.first {
                                 Text(work.title)
                                     .font(.caption)

@@ -72,6 +72,17 @@ struct ArtworkCard: View {
                             .accessibilityLabel("AI 生成作品")
                     }
                 }
+                HStack(spacing: 8) {
+                    Label("插画 \(illustration.id)", systemImage: "photo")
+                    Label("画师 \(illustration.user.id)", systemImage: "person")
+                }
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(
+                    "插画 ID \(illustration.id)，画师 ID \(illustration.user.id)"
+                )
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())

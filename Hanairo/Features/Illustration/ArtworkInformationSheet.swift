@@ -10,9 +10,9 @@ struct ArtworkInformationSheet: View {
             Form {
                 Section("作品") {
                     LabeledContent("标题", value: illustration.title)
-                    LabeledContent("作品 ID", value: String(illustration.id))
+                    LabeledContent("插画 ID", value: String(illustration.id))
                     LabeledContent("作者", value: illustration.user.name)
-                    LabeledContent("作者 ID", value: String(illustration.user.id))
+                    LabeledContent("画师 ID", value: String(illustration.user.id))
                     LabeledContent("页数", value: String(illustration.pageCount))
                     LabeledContent("尺寸", value: "\(illustration.width) × \(illustration.height)")
                     if !illustration.createDate.isEmpty {
@@ -59,7 +59,8 @@ struct ArtworkInformationSheet: View {
         [
             "标题：\(illustration.title)",
             "作者：\(illustration.user.name)",
-            "作品 ID：\(illustration.id)",
+            "插画 ID：\(illustration.id)",
+            "画师 ID：\(illustration.user.id)",
             PixivWebLinks.artwork(id: illustration.id).absoluteString
         ].joined(separator: "\n")
     }

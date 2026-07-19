@@ -4,6 +4,8 @@ struct SearchView: View {
     @Environment(AuthenticationStore.self) private var authentication
     @Environment(PixivRepository.self) private var repository
     @Environment(LocalBlockStore.self) private var localBlocks
+    @Environment(AppNavigationCoordinator.self) private var navigation
+    @Environment(\.dismissSearch) private var dismissSearch
     @State private var store: SearchStore
     @State private var showsFilters = false
 
@@ -25,15 +27,37 @@ struct SearchView: View {
         .searchable(
             text: $store.query,
             placement: .navigationBarDrawer(displayMode: .always),
-            prompt: "搜索作品、标签或用户"
+            prompt: "搜索作品、标签、用户或 ID"
         )
         .searchScopes($store.scope) {
             ForEach(SearchScope.allCases) { scope in
                 Text(scope.title).tag(scope)
             }
         }
+        .onSubmit(of: .search) {
+            submitSearch()
+        }
         .searchSuggestions {
-            if store.scope == .illustrations {
+            if !store.idQueries.isEmpty {
+                Section("ID 直达") {
+                    ForEach(store.idQueries) { idQuery in
+                        Button {
+                            openID(idQuery)
+                        } label: {
+                            Label {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(idQuery.target.title)
+                                    Text(String(idQuery.value))
+                                        .font(.caption.monospacedDigit())
+                                        .foregroundStyle(.secondary)
+                                }
+                            } icon: {
+                                Image(systemName: idQuery.target.systemImage)
+                            }
+                        }
+                    }
+                }
+            } else if store.scope == .illustrations {
                 ForEach(store.suggestions) { suggestion in
                     Label {
                         VStack(alignment: .leading, spacing: 2) {
@@ -61,7 +85,7 @@ struct SearchView: View {
                           : "line.3.horizontal.decrease.circle.fill")
                 }
                 .accessibilityLabel("搜索筛选")
-                .disabled(store.scope == .users)
+                .disabled(store.scope == .users || !store.idQueries.isEmpty)
             }
         }
         .sheet(isPresented: $showsFilters) {
@@ -101,6 +125,8 @@ struct SearchView: View {
     private var content: some View {
         if store.normalizedQuery.isEmpty {
             searchLanding
+        } else if !store.idQueries.isEmpty {
+            idQueryResults
         } else {
             switch store.scope {
             case .illustrations:
@@ -109,6 +135,38 @@ struct SearchView: View {
                 userResults
             }
         }
+    }
+
+    private var idQueryResults: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label("按 ID 直达", systemImage: "number")
+                .font(.title2.weight(.bold))
+
+            Text("检测到 Pixiv ID。选择要打开的插画或画师；也可以输入 illust:ID、user:ID 来指定类型。")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            ForEach(store.idQueries) { idQuery in
+                Button {
+                    openID(idQuery)
+                } label: {
+                    HStack(spacing: 12) {
+                        Label(idQuery.target.title, systemImage: idQuery.target.systemImage)
+                        Spacer(minLength: 8)
+                        Text(String(idQuery.value))
+                            .font(.body.monospacedDigit().weight(.semibold))
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -268,6 +326,36 @@ struct SearchView: View {
 
     private func loadMore() async {
         await store.loadMore(requestKey: requestKey, using: repository)
+    }
+
+    private func submitSearch() {
+        guard !store.normalizedQuery.isEmpty else { return }
+        guard let firstQuery = store.idQueries.first else { return }
+
+        if store.idQueries.count == 1 {
+            openID(firstQuery)
+            return
+        }
+
+        let preferredTarget: PixivIDSearchTarget =
+            store.scope == .users ? .user : .illustration
+        if let preferredQuery = store.idQueries.first(where: { $0.target == preferredTarget }) {
+            openID(preferredQuery)
+        } else {
+            openID(firstQuery)
+        }
+    }
+
+    private func openID(_ idQuery: PixivIDSearchQuery) {
+        dismissSearch()
+        // The search tab owns its NavigationStack; push after dismissing the
+        // search field so the destination is visible on both iPhone and iPad.
+        switch idQuery.target {
+        case .illustration:
+            navigation.push(.illustration(id: idQuery.value))
+        case .user:
+            navigation.push(.user(id: idQuery.value))
+        }
     }
 }
 

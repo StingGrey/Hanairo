@@ -1,5 +1,87 @@
 import Foundation
 
+enum PixivIDSearchTarget: String, CaseIterable, Identifiable, Hashable, Sendable {
+    case illustration
+    case user
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .illustration: "插画 ID"
+        case .user: "画师 ID"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .illustration: "photo"
+        case .user: "person.crop.circle"
+        }
+    }
+}
+
+struct PixivIDSearchQuery: Identifiable, Hashable, Sendable {
+    let target: PixivIDSearchTarget
+    let value: Int
+
+    var id: String { "\(target.rawValue)-\(value)" }
+}
+
+enum PixivIDSearchParser {
+    private static let illustrationPrefixes: Set<String> = [
+        "i", "illust", "illustid", "illust_id", "artwork", "artworks",
+        "artworkid",
+        "插画", "插画id", "作品", "作品id"
+    ]
+    private static let userPrefixes: Set<String> = [
+        "u", "user", "userid", "user_id", "painter", "painterid",
+        "artist", "artistid", "pid", "画师", "画师id", "作者", "作者id"
+    ]
+
+    static func parse(_ query: String) -> [PixivIDSearchQuery] {
+        let term = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !term.isEmpty else { return [] }
+
+        if let explicit = parseExplicit(term) {
+            return [explicit]
+        }
+
+        guard let id = positiveID(term) else { return [] }
+        return [
+            PixivIDSearchQuery(target: .illustration, value: id),
+            PixivIDSearchQuery(target: .user, value: id)
+        ]
+    }
+
+    private static func parseExplicit(_ term: String) -> PixivIDSearchQuery? {
+        let pieces = term.split { character in
+            character == ":"
+                || character == "/"
+                || character == "#"
+                || character == "="
+                || character == "-"
+                || character.isWhitespace
+        }
+        guard pieces.count >= 2, let last = pieces.last else { return nil }
+
+        let prefix = pieces.dropLast().map { String($0) }.joined().lowercased()
+        guard let id = positiveID(String(last)) else { return nil }
+        if illustrationPrefixes.contains(prefix) {
+            return PixivIDSearchQuery(target: .illustration, value: id)
+        }
+        if userPrefixes.contains(prefix) {
+            return PixivIDSearchQuery(target: .user, value: id)
+        }
+        return nil
+    }
+
+    private static func positiveID(_ value: String) -> Int? {
+        guard let id = Int(value), id > 0 else { return nil }
+        return id
+    }
+}
+
 enum PixivSearchTarget: String, CaseIterable, Identifiable, Codable, Sendable {
     case partialTag = "partial_match_for_tags"
     case exactTag = "exact_match_for_tags"
