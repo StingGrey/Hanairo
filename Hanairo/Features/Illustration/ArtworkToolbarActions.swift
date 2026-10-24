@@ -14,19 +14,24 @@ struct ArtworkToolbarActions: ToolbarContent {
     var body: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
             Button(action: onBookmark) {
-                Image(systemName: isBookmarked ? "heart.fill" : "heart")
+                Label(
+                    isBookmarked ? "取消收藏" : "收藏",
+                    systemImage: isBookmarked ? "heart.fill" : "heart"
+                )
                     .foregroundStyle(
                         isBookmarked
                             ? AnyShapeStyle(.tint)
                             : AnyShapeStyle(.primary)
                     )
             }
+            .labelStyle(.iconOnly)
             .disabled(isChangingBookmark)
             .accessibilityLabel(isBookmarked ? "取消收藏" : "收藏")
 
             ShareLink(item: shareURL) {
-                Image(systemName: "square.and.arrow.up")
+                Label("分享作品", systemImage: "square.and.arrow.up")
             }
+            .labelStyle(.iconOnly)
             .accessibilityLabel("分享作品")
 
             downloadControl
@@ -54,9 +59,10 @@ struct ArtworkToolbarActions: ToolbarContent {
                 ProgressView()
                     .controlSize(.small)
             } else {
-                Image(systemName: "arrow.down.to.line")
+                Label("下载作品", systemImage: "arrow.down.to.line")
             }
         }
+        .labelStyle(.iconOnly)
         .disabled(isPreparingExport)
         .accessibilityLabel(isPreparingExport ? "正在生成导出文件" : "下载作品")
     }

@@ -1,7 +1,4 @@
 import SwiftUI
-#if os(iOS)
-import UIKit
-#endif
 
 struct DiscoveryView: View {
     @Environment(AuthenticationStore.self) private var authentication
@@ -239,6 +236,18 @@ struct DiscoveryView: View {
 
     @ToolbarContentBuilder
     private var accountToolbar: some ToolbarContent {
+#if os(iOS)
+        if #available(iOS 27.1, *) {
+            accountToolbarItem.axisBehavior(.verticalPreferred)
+        } else {
+            accountToolbarItem
+        }
+#else
+        accountToolbarItem
+#endif
+    }
+
+    private var accountToolbarItem: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
             if
                 let account = authentication.account,
@@ -412,12 +421,7 @@ struct DiscoveryView: View {
     }
 
     private func usesWideLayout(for width: CGFloat) -> Bool {
-        guard width >= 900 else { return false }
-#if os(iOS)
-        return UIDevice.current.userInterfaceIdiom != .phone
-#else
-        return true
-#endif
+        width >= 900 && !dynamicTypeSize.isAccessibilitySize
     }
 }
 

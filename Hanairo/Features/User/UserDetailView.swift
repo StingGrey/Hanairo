@@ -1,7 +1,4 @@
 import SwiftUI
-#if os(iOS)
-import UIKit
-#endif
 
 struct UserDetailView: View {
     @Environment(\.dismiss) private var dismiss
@@ -51,8 +48,9 @@ struct UserDetailView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 ShareLink(item: PixivWebLinks.user(id: userID)) {
-                    Image(systemName: "square.and.arrow.up")
+                    Label("分享作者主页", systemImage: "square.and.arrow.up")
                 }
+                .labelStyle(.iconOnly)
                 .accessibilityLabel("分享作者主页")
             }
 
@@ -70,8 +68,9 @@ struct UserDetailView: View {
                             showsBlockConfirmation = true
                         }
                     } label: {
-                        Image(systemName: "ellipsis.circle")
+                        Label("更多操作", systemImage: "ellipsis.circle")
                     }
+                    .labelStyle(.iconOnly)
                     .accessibilityLabel("更多操作")
                 }
             }
@@ -493,17 +492,7 @@ struct UserDetailView: View {
     }
 
     private func usesLandscapeLayout(in size: CGSize) -> Bool {
-        guard
-            size.width >= 900,
-            size.width > size.height
-        else {
-            return false
-        }
-#if os(iOS)
-        return UIDevice.current.userInterfaceIdiom != .phone
-#else
-        return true
-#endif
+        size.width >= 900 && size.width > size.height
     }
 }
 

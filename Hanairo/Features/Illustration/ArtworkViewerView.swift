@@ -28,11 +28,9 @@ struct ArtworkViewerView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color.black
-                    .ignoresSafeArea()
+            MediaViewerLayout {
                 pages
-
+            } controls: {
                 if showsChrome {
                     ArtworkViewerChrome(
                         currentPage: selectedPage,
@@ -45,6 +43,7 @@ struct ArtworkViewerView: View {
                     .transition(.opacity.combined(with: .scale(scale: 0.97)))
                 }
             }
+            .background(Color.black.ignoresSafeArea())
             .navigationTitle(title.isEmpty ? "查看大图" : title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -102,8 +101,9 @@ struct ArtworkViewerView: View {
     private var shareAction: some View {
         if let currentURL = urls[selectedPage] {
             ShareLink(item: currentURL) {
-                Image(systemName: "square.and.arrow.up")
+                Label("分享当前图片", systemImage: "square.and.arrow.up")
             }
+            .labelStyle(.iconOnly)
             .accessibilityLabel("分享当前图片")
         } else {
             Button("图片不可用", systemImage: "square.and.arrow.up") {}

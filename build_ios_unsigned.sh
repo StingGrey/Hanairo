@@ -10,6 +10,13 @@ DERIVED_DATA="$BUILD/DerivedData-iOS"
 STAGING="$BUILD/IPA"
 IPA_PATH="$BUILD/Hanairo-iOS-unsigned.ipa"
 
+IOS_SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"
+IFS=. read -r IOS_SDK_MAJOR IOS_SDK_MINOR _ <<< "$IOS_SDK_VERSION"
+if (( IOS_SDK_MAJOR < 27 || (IOS_SDK_MAJOR == 27 && IOS_SDK_MINOR < 1) )); then
+  echo "iPhone Duo 适配需要 Xcode 27.1 或更高版本，当前 iOS SDK 为 $IOS_SDK_VERSION"
+  exit 1
+fi
+
 rm -rf "$DERIVED_DATA" "$STAGING"
 rm -f "$IPA_PATH"
 mkdir -p "$BUILD"

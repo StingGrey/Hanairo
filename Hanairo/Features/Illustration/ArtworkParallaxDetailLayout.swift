@@ -1,7 +1,4 @@
 import SwiftUI
-#if os(iOS)
-import UIKit
-#endif
 
 struct ArtworkRelatedFlowConfiguration: Equatable {
     let sidebarWidth: CGFloat
@@ -29,6 +26,7 @@ struct ArtworkParallaxDetailLayout<Details: View, Footer: View>: View {
 
     @State private var scrollOffset: CGFloat = 0
     @State private var wideDetailsHeight: CGFloat = 0
+    @State private var mediaState: ArtworkMediaState
 
     init(
         illustration: PixivIllustration,
@@ -44,6 +42,7 @@ struct ArtworkParallaxDetailLayout<Details: View, Footer: View>: View {
         self.isParallaxEnabled = isParallaxEnabled
         self.details = details()
         self.footer = footer()
+        _mediaState = State(initialValue: ArtworkMediaState(illustrationID: illustration.id))
     }
 
     @ViewBuilder
@@ -67,6 +66,11 @@ struct ArtworkParallaxDetailLayout<Details: View, Footer: View>: View {
                 )
             }
         }
+        .modifier(ArtworkMediaSession(
+            state: mediaState,
+            illustration: illustration,
+            fullSizeURLs: fullSizeURLs
+        ))
     }
 
     private func detailLayout(
@@ -273,7 +277,6 @@ struct ArtworkParallaxDetailLayout<Details: View, Footer: View>: View {
         ArtworkDetailPagesLayout(
             illustration: illustration,
             displayURLs: displayURLs,
-            fullSizeURLs: fullSizeURLs,
             availableWidth: width,
             viewportHeight: viewportHeight,
             scrollOffset: scrollOffset,
@@ -286,12 +289,7 @@ struct ArtworkParallaxDetailLayout<Details: View, Footer: View>: View {
     }
 
     private func usesWideLayout(for width: CGFloat) -> Bool {
-        guard width >= ArtworkWideDetailMetrics.minimumLayoutWidth else { return false }
-#if os(iOS)
-        return UIDevice.current.userInterfaceIdiom != .phone
-#else
-        return true
-#endif
+        width >= ArtworkWideDetailMetrics.minimumLayoutWidth
     }
 
     private func isLandscape(size: CGSize) -> Bool {
@@ -300,12 +298,15 @@ struct ArtworkParallaxDetailLayout<Details: View, Footer: View>: View {
 }
 
 private struct ArtworkWideDetailMetrics {
-    static let minimumLayoutWidth: CGFloat = 900
+    static let minimumMediaWidth: CGFloat = 300
+    static let minimumDetailWidth: CGFloat = 300
+    static let minimumLayoutWidth = minimumMediaWidth + minimumDetailWidth + 1
 
     let availableWidth: CGFloat
 
     var detailWidth: CGFloat {
-        min(max(availableWidth * 0.34, 360), 480)
+        let preferredWidth = min(max(availableWidth * 0.34, 360), 480)
+        return min(preferredWidth, availableWidth - Self.minimumMediaWidth - 1)
     }
 
     var mediaWidth: CGFloat {
@@ -353,7 +354,6 @@ private enum ArtworkParallaxMetrics {
 private struct ArtworkDetailPagesLayout: View {
     let illustration: PixivIllustration
     let displayURLs: [URL?]
-    let fullSizeURLs: [URL?]
     let availableWidth: CGFloat
     let viewportHeight: CGFloat
     let scrollOffset: CGFloat
@@ -412,8 +412,7 @@ private struct ArtworkDetailPagesLayout: View {
     private var pageContent: some View {
         ArtworkPagesView(
             illustration: illustration,
-            displayURLs: displayURLs,
-            fullSizeURLs: fullSizeURLs
+            displayURLs: displayURLs
         )
         .frame(width: availableWidth, height: mediaHeight, alignment: .top)
     }

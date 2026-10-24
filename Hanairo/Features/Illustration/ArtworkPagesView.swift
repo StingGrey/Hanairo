@@ -1,42 +1,24 @@
 import SwiftUI
 
 struct ArtworkPagesView: View {
-    @Environment(ArtworkDownloadManager.self) private var downloadManager
+    @Environment(ArtworkMediaState.self) private var mediaState
 
     let illustration: PixivIllustration
     let displayURLs: [URL?]
-    let fullSizeURLs: [URL?]
-
-    @State private var viewerPresentation: ArtworkViewerPresentation?
 
     var body: some View {
         if illustration.isUgoira {
             UgoiraPlayerView(illustration: illustration)
         } else {
-            staticArtworkPages
+            pages
         }
-    }
-
-    @ViewBuilder
-    private var staticArtworkPages: some View {
-#if os(iOS)
-        pages
-            .fullScreenCover(item: $viewerPresentation) { presentation in
-                artworkViewer(for: presentation)
-            }
-#else
-        pages
-            .sheet(item: $viewerPresentation) { presentation in
-                artworkViewer(for: presentation)
-            }
-#endif
     }
 
     private var pages: some View {
         LazyVStack(spacing: 2) {
             ForEach(displayURLs.indices, id: \.self) { index in
                 Button {
-                    viewerPresentation = ArtworkViewerPresentation(page: index)
+                    mediaState.presentation = .artwork(page: index)
                 } label: {
                     RemoteImageView(url: displayURLs[index], contentMode: .fit)
                         .frame(maxWidth: .infinity)
@@ -56,20 +38,6 @@ struct ArtworkPagesView: View {
         .clipped()
     }
 
-    private func artworkViewer(for presentation: ArtworkViewerPresentation) -> some View {
-        ArtworkViewerView(
-            title: illustration.title,
-            urls: fullSizeURLs,
-            initialPage: presentation.page,
-            onDownload: { page in
-                downloadManager.enqueue(
-                    illustration: illustration,
-                    pageIndices: [page]
-                ).message
-            }
-        )
-    }
-
     private var clampedAspectRatio: CGFloat {
         min(max(illustration.aspectRatio, 0.42), 1.6)
     }
@@ -83,10 +51,4 @@ struct ArtworkPagesView: View {
             .background(.black.opacity(0.55), in: Capsule())
             .padding(10)
     }
-}
-
-private struct ArtworkViewerPresentation: Identifiable {
-    let page: Int
-
-    var id: Int { page }
 }

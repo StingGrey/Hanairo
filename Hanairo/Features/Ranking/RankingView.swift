@@ -1,12 +1,10 @@
 import SwiftUI
-#if os(iOS)
-import UIKit
-#endif
 
 struct RankingView: View {
     @Environment(AuthenticationStore.self) private var authentication
     @Environment(PixivRepository.self) private var repository
     @Environment(AppSettings.self) private var settings
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var mode: RankingMode = .daily
     @State private var selectedDate = Date()
@@ -16,7 +14,7 @@ struct RankingView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let usesExpandedFilters = prefersExpandedFilters
+            let usesExpandedFilters = prefersExpandedFilters(for: geometry.size.width)
             let usesFourColumns = usesFourColumnLayout(for: geometry.size.width)
 
             ScrollView {
@@ -277,17 +275,13 @@ struct RankingView: View {
         }
     }
 
-    private var prefersExpandedFilters: Bool {
-#if os(iOS)
-        UIDevice.current.userInterfaceIdiom != .phone
-#else
-        true
-#endif
+    private func prefersExpandedFilters(for width: CGFloat) -> Bool {
+        width >= 700 && !dynamicTypeSize.isAccessibilitySize
     }
 
     private func usesFourColumnLayout(for width: CGFloat) -> Bool {
 #if os(iOS)
-        UIDevice.current.userInterfaceIdiom != .phone && width >= 700
+        width >= 700
 #else
         width >= 900
 #endif

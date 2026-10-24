@@ -2,7 +2,7 @@ import SwiftUI
 
 struct MasonryGrid<Item: Identifiable, Content: View>: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var adaptiveColumnCount = 2
 
     let items: [Item]
     var spacing: CGFloat = 12
@@ -35,16 +35,18 @@ struct MasonryGrid<Item: Identifiable, Content: View>: View {
                 .frame(maxWidth: .infinity, alignment: .top)
             }
         }
+        .onGeometryChange(for: Int.self) { geometry in
+            max(1, Int((geometry.size.width + spacing) / (160 + spacing)))
+        } action: { newColumnCount in
+            adaptiveColumnCount = newColumnCount
+        }
     }
 
     private var resolvedColumnCount: Int {
-        if let columnCount {
-            return max(columnCount, 1)
-        }
         if dynamicTypeSize.isAccessibilitySize {
             return 1
         }
-        return horizontalSizeClass == .compact ? 2 : 3
+        return max(columnCount ?? adaptiveColumnCount, 1)
     }
 
     private var columns: [[Item]] {
