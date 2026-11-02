@@ -10,6 +10,7 @@ struct HanairoApp: App {
     @State private var browsingHistory: BrowsingHistoryStore
     @State private var repository: PixivRepository
     @State private var imageRepository: ImageRepository
+    @State private var reverseImageSearchService: ReverseImageSearchService
     @State private var theme: AppTheme
     @State private var ugoiraRepository: UgoiraRepository
     @State private var downloadManager: ArtworkDownloadManager
@@ -48,6 +49,9 @@ struct HanairoApp: App {
         _browsingHistory = State(initialValue: browsingHistory)
         _repository = State(initialValue: repository)
         _imageRepository = State(initialValue: imageRepository)
+        _reverseImageSearchService = State(
+            initialValue: ReverseImageSearchService(sessionProvider: sessionProvider)
+        )
         _theme = State(initialValue: AppTheme(imageRepository: imageRepository))
         _updateChecker = State(
             initialValue: AppUpdateChecker(client: NetworkClient(sessionProvider: sessionProvider))
@@ -80,6 +84,7 @@ struct HanairoApp: App {
                 .environment(browsingHistory)
                 .environment(repository)
                 .environment(imageRepository)
+                .environment(reverseImageSearchService)
                 .environment(theme)
                 .environment(updateChecker)
                 .environment(ugoiraRepository)

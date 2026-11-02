@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct ArtworkCard: View {
-    @Environment(\.artworkTransitionNamespace) private var artworkTransitionNamespace
     @Environment(PixivRepository.self) private var repository
     @Environment(LocalBlockStore.self) private var localBlocks
     @Environment(ArtworkDownloadManager.self) private var downloadManager
@@ -157,10 +156,7 @@ struct ArtworkCard: View {
                         .accessibilityLabel("正在快速保存")
                 }
             }
-            .artworkTransitionSource(
-                id: illustration.id,
-                namespace: artworkTransitionNamespace
-            )
+            .appNavigationTransitionSource(for: route)
     }
 
     @ViewBuilder
@@ -188,6 +184,10 @@ struct ArtworkCard: View {
 
     private var downloadTitle: String {
         illustration.pageCount > 1 ? "下载全部图片" : "下载图片"
+    }
+
+    private var route: AppRoute {
+        .illustration(id: illustration.id, preview: illustration)
     }
 
     private var downloadNoticeBinding: Binding<Bool> {
@@ -248,7 +248,7 @@ struct ArtworkCard: View {
     }
 
     private func openArtwork() {
-        navigation.push(.illustration(id: illustration.id))
+        navigation.push(route)
     }
 
     @ViewBuilder

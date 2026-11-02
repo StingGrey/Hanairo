@@ -27,8 +27,10 @@ Forked from [youshen2/Hanairo](https://github.com/youshen2/Hanairo)
 - 日榜、周榜、月榜和历史日期排行
 - 公开收藏与关注动态
 - 热门标签、作品搜索和用户搜索，支持插画 ID / 画师 ID 直达
+- SauceNAO 识图，从相册图片找到对应的 Pixiv 作品
 - 多页作品详情、标签、作者、统计和相关作品
 - 原图大图查看、双击与手势缩放、多页切换
+- iPhone Duo 内外屏自适应、半折叠媒体布局与侧边工具栏
 - 浮动收藏、分享与原图下载操作栏
 - 作者资料、关注与作品列表
 - 收藏、关注、分享和内容过滤
@@ -53,19 +55,17 @@ Hanairo/
 
 视图只负责展示和局部交互，网络请求集中在 `PixivAPI`，登录状态集中在 `AuthenticationStore`，业务入口集中在 `PixivRepository`。
 
-## 登录说明
-
-应用启动时会先从钥匙串恢复会话；没有有效账户时只显示登录界面。点击登录后，Hanairo 通过 SwiftUI 的系统 Web Authentication Session 打开 Pixiv 授权页，自动接收 `pixiv://account` 回调、提取授权码并换取令牌，不需要复制粘贴。已有 Refresh Token 的用户可以进入独立的高级登录页面。令牌只保存在系统钥匙串中。
-
 ## 构建
 
-使用 Xcode 打开 `Hanairo.xcodeproj` 后运行 `Hanairo` Scheme。项目当前可编译到 iOS、macOS 与 visionOS；macOS 沙盒仅申请了网络客户端权限。
+使用 Xcode 27.1 或更高版本打开 `Hanairo.xcodeproj` 后运行 `Hanairo` Scheme。iPhone Duo 适配使用 iOS 27.1 SDK，最低运行版本仍为 iOS 26.5。项目当前可编译到 iOS、macOS 与 visionOS；macOS 沙盒仅申请了网络客户端权限。
 
 运行 `bash build_ios_unsigned.sh` 可以在 `build/` 目录生成 iOS 未签名 IPA。GitHub Actions 会在 main 分支、Pull Request、`v*` 标签和手动触发时执行同一构建；标签构建完成后会自动创建 GitHub Release。
 
 ## 说明
 
-Pixiv 的移动端接口并非公开稳定 API，接口或授权流程变化时需要同步调整网络层。功能结构参考了 [PixEz Flutter](https://github.com/Notsfsssf/pixez-flutter)。Hanairo 与 pixiv Inc. 没有隶属关系。
+Pixiv 的移动端接口并非公开稳定 API，接口或授权流程变化时需要同步调整网络层。功能结构参考了 [PixEz Flutter](https://github.com/Notsfsssf/pixez-flutter)。
+
+Hanairo 与 pixiv Inc. 没有隶属关系。
 
 ## 许可证
 

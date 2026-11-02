@@ -2,24 +2,24 @@ import SwiftUI
 
 struct MasonryGrid<Item: Identifiable, Content: View>: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var adaptiveColumnCount = 2
 
     let items: [Item]
     var spacing: CGFloat = 12
-    let preferredColumnCount: Int?
+    let columnCount: Int?
     let estimatedHeight: (Item) -> CGFloat
     let content: (Item) -> Content
 
     init(
         items: [Item],
         spacing: CGFloat = 12,
-        preferredColumnCount: Int? = nil,
+        columnCount: Int? = nil,
         estimatedHeight: @escaping (Item) -> CGFloat,
         @ViewBuilder content: @escaping (Item) -> Content
     ) {
         self.items = items
         self.spacing = spacing
-        self.preferredColumnCount = preferredColumnCount
+        self.columnCount = columnCount
         self.estimatedHeight = estimatedHeight
         self.content = content
     }
@@ -35,21 +35,23 @@ struct MasonryGrid<Item: Identifiable, Content: View>: View {
                 .frame(maxWidth: .infinity, alignment: .top)
             }
         }
+        .onGeometryChange(for: Int.self) { geometry in
+            max(1, Int((geometry.size.width + spacing) / (160 + spacing)))
+        } action: { newColumnCount in
+            adaptiveColumnCount = newColumnCount
+        }
     }
 
-    private var columnCount: Int {
+    private var resolvedColumnCount: Int {
         if dynamicTypeSize.isAccessibilitySize {
             return 1
         }
-        if let preferredColumnCount, preferredColumnCount > 0 {
-            return preferredColumnCount
-        }
-        return horizontalSizeClass == .compact ? 2 : 3
+        return max(columnCount ?? adaptiveColumnCount, 1)
     }
 
     private var columns: [[Item]] {
-        var result = Array(repeating: [Item](), count: columnCount)
-        var heights = Array(repeating: CGFloat.zero, count: columnCount)
+        var result = Array(repeating: [Item](), count: resolvedColumnCount)
+        var heights = Array(repeating: CGFloat.zero, count: resolvedColumnCount)
 
         for item in items {
             let targetColumn = heights.indices.min { heights[$0] < heights[$1] } ?? 0

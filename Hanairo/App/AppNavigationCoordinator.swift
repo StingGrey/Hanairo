@@ -35,7 +35,7 @@ final class AppNavigationCoordinator {
 
     private func preferredTab(for route: AppRoute) -> AppTab {
         switch route {
-        case .search:
+        case .search, .reverseImageSearch:
             .search
         case .mangaWatchlist, .browsingHistory, .downloads, .downloadRecord,
              .settings, .localDataSettings, .about:

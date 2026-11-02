@@ -1,18 +1,12 @@
 import SwiftUI
 
 struct UgoiraPlayerView: View {
-    @Environment(\.scenePhase) private var scenePhase
-    @Environment(UgoiraRepository.self) private var repository
+    @Environment(ArtworkMediaState.self) private var mediaState
 
     let illustration: PixivIllustration
 
-    @State private var player: UgoiraPlayer
-    @State private var loadRequestID: UUID?
-    @State private var viewerPresentation: UgoiraViewerPresentation?
-
-    init(illustration: PixivIllustration) {
-        self.illustration = illustration
-        _player = State(initialValue: UgoiraPlayer(illustrationID: illustration.id))
+    private var player: UgoiraPlayer {
+        mediaState.player
     }
 
     var body: some View {
@@ -21,17 +15,6 @@ struct UgoiraPlayerView: View {
             .aspectRatio(clampedAspectRatio, contentMode: .fit)
             .background(.black)
             .clipped()
-            .task(id: loadRequestID) {
-                guard loadRequestID != nil else { return }
-                await player.load(using: repository)
-            }
-            .task(id: player.playbackTaskKey) {
-                await player.runPlayback()
-            }
-            .onChange(of: scenePhase, initial: true) { _, phase in
-                player.setSuspended(phase != .active, reason: .inactiveScene)
-            }
-            .viewerPresentation($viewerPresentation, onDismiss: viewerDidDismiss)
     }
 
     @ViewBuilder
@@ -78,7 +61,7 @@ struct UgoiraPlayerView: View {
 
     private var playButton: some View {
         Button("播放动图", systemImage: "play.fill") {
-            loadRequestID = UUID()
+            mediaState.loadRequestID = UUID()
         }
         .labelStyle(.iconOnly)
         .font(.title2.weight(.semibold))
@@ -110,7 +93,7 @@ struct UgoiraPlayerView: View {
                 .multilineTextAlignment(.center)
                 .lineLimit(3)
             Button("重新加载", systemImage: "arrow.clockwise") {
-                loadRequestID = UUID()
+                mediaState.loadRequestID = UUID()
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
@@ -123,51 +106,13 @@ struct UgoiraPlayerView: View {
     private func presentViewer() {
         guard let animation = player.animation else { return }
         player.setSuspended(true, reason: .covered)
-        viewerPresentation = UgoiraViewerPresentation(
+        mediaState.presentation = .ugoira(
             animation: animation,
-            initialFrame: player.currentFrameIndex,
-            title: illustration.title
+            initialFrame: player.currentFrameIndex
         )
-    }
-
-    private func viewerDidDismiss() {
-        player.setSuspended(false, reason: .covered)
     }
 
     private var clampedAspectRatio: CGFloat {
         min(max(illustration.aspectRatio, 0.42), 1.6)
-    }
-}
-
-private struct UgoiraViewerPresentation: Identifiable {
-    let id = UUID()
-    let animation: UgoiraAnimation
-    let initialFrame: Int
-    let title: String
-}
-
-private extension View {
-    @ViewBuilder
-    func viewerPresentation(
-        _ presentation: Binding<UgoiraViewerPresentation?>,
-        onDismiss: @escaping () -> Void
-    ) -> some View {
-#if os(iOS)
-        fullScreenCover(item: presentation, onDismiss: onDismiss) { item in
-            UgoiraViewerView(
-                animation: item.animation,
-                initialFrame: item.initialFrame,
-                title: item.title
-            )
-        }
-#else
-        sheet(item: presentation, onDismiss: onDismiss) { item in
-            UgoiraViewerView(
-                animation: item.animation,
-                initialFrame: item.initialFrame,
-                title: item.title
-            )
-        }
-#endif
     }
 }

@@ -76,7 +76,12 @@ struct SearchView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItemGroup(placement: .primaryAction) {
+                NavigationLink(value: AppRoute.reverseImageSearch) {
+                    Image(systemName: "photo.badge.magnifyingglass")
+                }
+                .accessibilityLabel("识图")
+
                 Button {
                     showsFilters = true
                 } label: {

@@ -3,7 +3,6 @@ import UniformTypeIdentifiers
 
 struct IllustrationDetailView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.artworkTransitionNamespace) private var artworkTransitionNamespace
     @Environment(AuthenticationStore.self) private var authentication
     @Environment(PixivRepository.self) private var repository
     @Environment(ImageRepository.self) private var imageRepository
@@ -13,8 +12,11 @@ struct IllustrationDetailView: View {
     @Environment(AppTheme.self) private var theme
 
     let illustrationID: Int
+    let initialIllustration: PixivIllustration?
 
-    @State private var state: LoadState<PixivIllustration> = .idle
+    @State private var state: LoadState<PixivIllustration>
+    @State private var isLoadingDetails: Bool
+    @State private var detailLoadError: String?
     @State private var related = PaginatedStore<PixivIllustration>(id: { $0.id })
     @State private var isChangingBookmark = false
     @State private var actionError: String?
@@ -28,6 +30,21 @@ struct IllustrationDetailView: View {
     @State private var isPreparingExport = false
     @State private var preparedExport: PreparedArtworkExport?
     @State private var isFileExporterPresented = false
+
+    init(
+        illustrationID: Int,
+        initialIllustration: PixivIllustration? = nil
+    ) {
+        self.illustrationID = illustrationID
+        self.initialIllustration = initialIllustration
+        if let initialIllustration {
+            _state = State(initialValue: .loaded(initialIllustration))
+            _isLoadingDetails = State(initialValue: true)
+        } else {
+            _state = State(initialValue: .idle)
+            _isLoadingDetails = State(initialValue: false)
+        }
+    }
 
     private var actionErrorBinding: Binding<Bool> {
         Binding(
@@ -68,13 +85,13 @@ struct IllustrationDetailView: View {
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
-        .artworkNavigationTransition(
-            id: illustrationID,
-            namespace: artworkTransitionNamespace
-        )
         .tint(artworkAccentColor ?? theme.accentColor)
         .toolbar {
-            if case let .loaded(illustration) = state {
+            if
+                case let .loaded(illustration) = state,
+                !isLoadingDetails,
+                detailLoadError == nil
+            {
                 ArtworkToolbarActions(
                     isBookmarked: repository.bookmarkState(for: illustration),
                     isChangingBookmark: isChangingBookmark,
@@ -195,21 +212,39 @@ struct IllustrationDetailView: View {
             fullSizeURLs: fullSizeURLs,
             isParallaxEnabled: settings.artworkParallaxEnabled
         ) {
-            VStack(alignment: .leading, spacing: 20) {
-                IllustrationMetadataView(illustration: illustration) {
-                    commentSheet = CommentSheetContext(
-                        illustrationID: illustration.id,
-                        allowsPosting: illustration.commentAccessControl == 0
-                    )
-                }
-                RelatedArtworkSection(
-                    store: related,
-                    onRetry: retryRelated,
-                    onLoadMore: loadMoreRelated,
-                    onBookmark: toggleRelatedBookmark
+            detailsContent(illustration)
+        } footer: {
+            RelatedArtworkSection(
+                store: related,
+                onRetry: retryRelated,
+                onLoadMore: loadMoreRelated,
+                onBookmark: toggleRelatedBookmark
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func detailsContent(_ illustration: PixivIllustration) -> some View {
+        if let detailLoadError {
+            ErrorStateView(message: detailLoadError) {
+                Task { await load() }
+            }
+            .frame(maxWidth: .infinity, minHeight: 280)
+        } else if isLoadingDetails {
+            VStack(spacing: 12) {
+                ProgressView()
+                Text("正在加载作品信息…")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, minHeight: 280)
+        } else {
+            IllustrationMetadataView(illustration: illustration) {
+                commentSheet = CommentSheetContext(
+                    illustrationID: illustration.id,
+                    allowsPosting: illustration.commentAccessControl == 0
                 )
             }
-            .padding(.horizontal)
         }
     }
 
@@ -302,19 +337,34 @@ struct IllustrationDetailView: View {
         if let cachedIllustration {
             state = .loaded(cachedIllustration)
             recordHistoryIfNeeded(cachedIllustration)
+            isLoadingDetails = false
+            detailLoadError = nil
+        } else if let initialIllustration {
+            state = .loaded(initialIllustration)
+            isLoadingDetails = true
+            detailLoadError = nil
         } else {
             state = .loading
+            isLoadingDetails = true
+            detailLoadError = nil
         }
 
         do {
             let illustration = try await repository.refreshIllustration(id: illustrationID)
             state = .loaded(illustration)
             recordHistoryIfNeeded(illustration)
+            isLoadingDetails = false
+            detailLoadError = nil
         } catch is CancellationError {
             return
         } catch {
             if cachedIllustration == nil {
-                state = .failed(error.localizedDescription)
+                isLoadingDetails = false
+                if initialIllustration != nil {
+                    detailLoadError = error.localizedDescription
+                } else {
+                    state = .failed(error.localizedDescription)
+                }
             }
         }
     }
@@ -394,46 +444,213 @@ private struct CommentSheetContext: Identifiable {
 }
 
 private struct RelatedArtworkSection: View {
+    @Environment(\.artworkRelatedFlowConfiguration) private var flowConfiguration
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(LocalBlockStore.self) private var localBlocks
+
     let store: PaginatedStore<PixivIllustration>
     let onRetry: () async -> Void
     let onLoadMore: () async -> Void
     let onBookmark: (Int) async -> Void
 
+    @State private var flowingSidebarHeight: CGFloat = 0
+
+    @ViewBuilder
     var body: some View {
         if store.phase != .loaded || !store.items.isEmpty {
-            HStack {
-                Text("相关作品")
-                    .font(.title2.weight(.bold))
-                Spacer()
-                if !store.items.isEmpty {
-                    Text(store.items.count, format: .number)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
-                }
+            if let flowConfiguration {
+                flowingContent(configuration: flowConfiguration)
+            } else {
+                standardContent
             }
+        }
+    }
 
-            switch store.phase {
-            case .idle, .loading:
-                LoadingArtworkGrid()
-            case let .failed(message):
-                ErrorStateView(message: message) {
-                    Task { await onRetry() }
+    @ViewBuilder
+    private var standardContent: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            header
+            phaseContent(illustrations: store.items, onLoadMore: onLoadMore)
+        }
+    }
+
+    @ViewBuilder
+    private func flowingContent(
+        configuration: ArtworkRelatedFlowConfiguration
+    ) -> some View {
+        switch store.phase {
+        case .idle, .loading, .failed:
+            standardContent
+                .environment(\.horizontalSizeClass, .compact)
+                .frame(width: configuration.sidebarWidth, alignment: .topLeading)
+                .frame(maxWidth: .infinity, alignment: .topTrailing)
+        case .loaded:
+            let splitIndex = sidebarItemCount(for: configuration)
+            let sidebarItems = Array(visibleIllustrations.prefix(splitIndex))
+            let fullWidthItems = Array(visibleIllustrations.dropFirst(splitIndex))
+
+            VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 20) {
+                    header
+
+                    if !sidebarItems.isEmpty {
+                        sidebarArtworkGrid(
+                            illustrations: sidebarItems,
+                            loadsMore: fullWidthItems.isEmpty
+                        )
+                    }
                 }
-                .frame(minHeight: 220)
-            case .loaded:
-                ArtworkGrid(
-                    illustrations: store.items,
-                    onLoadMore: onLoadMore,
-                    usesPreferredColumnCount: false,
-                    onBookmark: onBookmark
-                )
+                .frame(width: configuration.sidebarWidth, alignment: .topLeading)
+                .frame(maxWidth: .infinity, alignment: .topTrailing)
+                .onGeometryChange(for: CGFloat.self) { geometry in
+                    geometry.size.height
+                } action: { newHeight in
+                    guard abs(flowingSidebarHeight - newHeight) > 0.5 else { return }
+                    flowingSidebarHeight = newHeight
+                }
+
+                if !fullWidthItems.isEmpty {
+                    Color.clear
+                        .frame(
+                            height: max(
+                                configuration.availableSidebarHeight
+                                    - flowingSidebarHeight,
+                                0
+                            )
+                        )
+
+                    ArtworkMasonryGrid(
+                        illustrations: fullWidthItems,
+                        columnCount: dynamicTypeSize.isAccessibilitySize ? 2 : 4,
+                        onLoadMore: onLoadMore,
+                        usesPreferredColumnCount: false,
+                        onBookmark: onBookmark
+                    )
+                    .padding(.top, 24)
+                }
+
                 PaginationStatusView(
                     isLoading: store.isLoadingMore,
                     errorMessage: store.loadMoreError,
                     onRetry: onLoadMore
                 )
+                .padding(.top, 20)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .clipped()
+        }
+    }
+
+    @ViewBuilder
+    private func sidebarArtworkGrid(
+        illustrations: [PixivIllustration],
+        loadsMore: Bool
+    ) -> some View {
+        let columnCount = dynamicTypeSize.isAccessibilitySize ? 1 : 2
+
+        if loadsMore {
+            ArtworkMasonryGrid(
+                illustrations: illustrations,
+                columnCount: columnCount,
+                onLoadMore: onLoadMore,
+                usesPreferredColumnCount: false,
+                onBookmark: onBookmark
+            )
+        } else {
+            ArtworkMasonryGrid(
+                illustrations: illustrations,
+                columnCount: columnCount,
+                onLoadMore: nil,
+                usesPreferredColumnCount: false,
+                onBookmark: onBookmark
+            )
+        }
+    }
+
+    private var header: some View {
+        HStack {
+            Text("相关作品")
+                .font(.title2.weight(.bold))
+            Spacer()
+            if !store.items.isEmpty {
+                Text(store.items.count, format: .number)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
             }
         }
+    }
+
+    @ViewBuilder
+    private func phaseContent(
+        illustrations: [PixivIllustration],
+        onLoadMore: (() async -> Void)?
+    ) -> some View {
+        switch store.phase {
+        case .idle, .loading:
+            LoadingArtworkGrid()
+        case let .failed(message):
+            ErrorStateView(message: message) {
+                Task { await onRetry() }
+            }
+            .frame(minHeight: 220)
+        case .loaded:
+            ArtworkGrid(
+                illustrations: illustrations,
+                onLoadMore: onLoadMore,
+                usesPreferredColumnCount: false,
+                onBookmark: onBookmark
+            )
+            PaginationStatusView(
+                isLoading: store.isLoadingMore,
+                errorMessage: store.loadMoreError,
+                onRetry: self.onLoadMore
+            )
+        }
+    }
+
+    private var visibleIllustrations: [PixivIllustration] {
+        store.items.filter { !localBlocks.isBlocked($0) }
+    }
+
+    private func sidebarItemCount(
+        for configuration: ArtworkRelatedFlowConfiguration
+    ) -> Int {
+        let spacing: CGFloat = 12
+        let columnCount = dynamicTypeSize.isAccessibilitySize ? 1 : 2
+        let availableGridHeight = max(
+            configuration.availableSidebarHeight - 50,
+            0
+        )
+        guard availableGridHeight > 0 else { return 0 }
+
+        let totalSpacing = spacing * CGFloat(columnCount - 1)
+        let cardWidth = max(
+            (configuration.sidebarWidth - totalSpacing) / CGFloat(columnCount),
+            1
+        )
+        var columnHeights = Array(repeating: CGFloat.zero, count: columnCount)
+        var count = 0
+
+        for illustration in visibleIllustrations {
+            let targetColumn = columnHeights.indices.min {
+                columnHeights[$0] < columnHeights[$1]
+            } ?? 0
+            let itemSpacing = columnHeights[targetColumn] == 0 ? 0 : spacing
+            let aspectRatio = illustration.aspectRatio > 0
+                ? illustration.aspectRatio
+                : 0.75
+            let estimatedHeight = cardWidth * (1 / aspectRatio + 0.34)
+            let nextHeight = columnHeights[targetColumn]
+                + itemSpacing
+                + estimatedHeight
+
+            guard nextHeight <= availableGridHeight else { break }
+
+            columnHeights[targetColumn] = nextHeight
+            count += 1
+        }
+
+        return count
     }
 }
 

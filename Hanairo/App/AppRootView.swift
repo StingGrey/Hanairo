@@ -158,6 +158,7 @@ private struct LaunchView: View {
         .environment(browsingHistory)
         .environment(repository)
         .environment(imageRepository)
+        .environment(ReverseImageSearchService(sessionProvider: sessionProvider))
         .environment(AppTheme(imageRepository: imageRepository))
         .environment(
             AppUpdateChecker(client: NetworkClient(sessionProvider: sessionProvider))

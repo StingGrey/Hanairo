@@ -6,6 +6,7 @@ struct ArtworkMasonryGrid: View {
 
     let illustrations: [PixivIllustration]
     var showsRanking = false
+    var columnCount: Int? = nil
     var onLoadMore: (() async -> Void)?
     var usesPreferredColumnCount = true
     let onBookmark: (Int) async -> Void
@@ -14,7 +15,7 @@ struct ArtworkMasonryGrid: View {
         MasonryGrid(
             items: items,
             spacing: 12,
-            preferredColumnCount: preferredColumnCount,
+            columnCount: preferredColumnCount ?? columnCount,
             estimatedHeight: { $0.estimatedHeight }
         ) { item in
             ArtworkCard(
