@@ -19,28 +19,36 @@ struct UgoiraViewerView: View {
     }
 
     var body: some View {
-        GeometryReader { proxy in
-            ZStack {
-                Color.black
+        NavigationStack {
+            MediaViewerLayout {
                 viewerContent
-            }
-            .frame(width: proxy.size.width, height: proxy.size.height)
-            .overlay(alignment: .topLeading) {
-                closeButton
-                    .padding(.leading, 12)
-                    .padding(.top, proxy.safeAreaInsets.top + 8)
-            }
-            .overlay(alignment: .bottom) {
-                if player.isReady {
-                    UgoiraPlaybackControls(player: player)
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, proxy.safeAreaInsets.bottom + 10)
+            } controls: {
+                VStack {
+                    Spacer()
+                    if player.isReady {
+                        UgoiraPlaybackControls(player: player)
+                            .padding(.horizontal, 12)
+                            .padding(.bottom, 10)
+                    }
                 }
             }
+            .background(Color.black.ignoresSafeArea())
+            .navigationTitle(title.isEmpty ? "查看动图" : title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭", systemImage: "xmark") {
+                        dismiss()
+                    }
+                    .accessibilityLabel("关闭动图")
+                }
+            }
+            .toolbarBackground(.black, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
         }
         .background(Color.black)
-        .ignoresSafeArea()
         .presentationBackground(.black)
+        .environment(\.colorScheme, .dark)
         .task(id: preparationID) {
             await player.prepare(animation: animation, initialFrame: initialFrame)
         }
@@ -50,9 +58,6 @@ struct UgoiraViewerView: View {
         .onChange(of: scenePhase, initial: true) { _, phase in
             player.setSuspended(phase != .active, reason: .inactiveScene)
         }
-#if os(iOS)
-        .statusBarHidden(true)
-#endif
     }
 
     @ViewBuilder
@@ -82,24 +87,4 @@ struct UgoiraViewerView: View {
         }
     }
 
-    @ViewBuilder
-    private var closeButton: some View {
-#if os(visionOS)
-        closeButtonContent
-            .buttonStyle(.plain)
-            .background(.regularMaterial, in: Circle())
-#else
-        closeButtonContent
-            .buttonStyle(.glass)
-#endif
-    }
-
-    private var closeButtonContent: some View {
-        Button("关闭", systemImage: "xmark") {
-            dismiss()
-        }
-        .labelStyle(.iconOnly)
-        .frame(width: 44, height: 44)
-        .accessibilityLabel("关闭动图")
-    }
 }

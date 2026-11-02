@@ -58,6 +58,12 @@ struct AboutView: View {
 
             Section("开源许可") {
                 Text("Hanairo 依据 Mozilla Public License 2.0（MPL-2.0）发布。")
+                Link(destination: URL(string: "https://github.com/StingGrey/Hanairo")!) {
+                    Label("开源地址", systemImage: "chevron.left.forwardslash.chevron.right")
+                }
+                Link(destination: URL(string: "https://github.com/youshen2/Hanairo")!) {
+                    Label("上游项目 youshen2/Hanairo", systemImage: "arrow.triangle.branch")
+                }
                 Link(destination: URL(string: "https://www.mozilla.org/MPL/2.0/")!) {
                     Label("查看 MPL 2.0", systemImage: "doc.text")
                 }

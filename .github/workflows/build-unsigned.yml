@@ -53,7 +53,7 @@ jobs:
     name: Build unsigned iOS IPA
     needs: select_run
     if: needs.select_run.outputs.should_build == 'true'
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 60
 
     steps:
@@ -68,7 +68,7 @@ jobs:
           set -euo pipefail
 
           XCODE_APP=""
-          for candidate in /Applications/Xcode_26.5.app /Applications/Xcode_26.5.0.app /Applications/Xcode.app; do
+          for candidate in /Applications/Xcode_27.1.app /Applications/Xcode_27.1.0.app /Applications/Xcode.app; do
             if [[ -d "${candidate}" ]]; then
               XCODE_APP="${candidate}"
               break
@@ -76,7 +76,7 @@ jobs:
           done
 
           if [[ -z "${XCODE_APP}" ]]; then
-            echo "找不到可用的 Xcode"
+            echo "找不到可用的 Xcode 27.1 或更高版本"
             exit 1
           fi
 

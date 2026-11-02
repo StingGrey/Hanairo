@@ -1,50 +1,107 @@
 import SwiftUI
 
-struct ArtworkParallaxDetailLayout<Foreground: View>: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+struct ArtworkRelatedFlowConfiguration: Equatable {
+    let sidebarWidth: CGFloat
+    let availableSidebarHeight: CGFloat
+}
 
+private struct ArtworkRelatedFlowConfigurationKey: EnvironmentKey {
+    static let defaultValue: ArtworkRelatedFlowConfiguration? = nil
+}
+
+extension EnvironmentValues {
+    var artworkRelatedFlowConfiguration: ArtworkRelatedFlowConfiguration? {
+        get { self[ArtworkRelatedFlowConfigurationKey.self] }
+        set { self[ArtworkRelatedFlowConfigurationKey.self] = newValue }
+    }
+}
+
+struct ArtworkParallaxDetailLayout<Details: View, Footer: View>: View {
     let illustration: PixivIllustration
     let displayURLs: [URL?]
     let fullSizeURLs: [URL?]
     let isParallaxEnabled: Bool
-    @ViewBuilder let foreground: Foreground
+    @ViewBuilder let details: Details
+    @ViewBuilder let footer: Footer
 
     @State private var scrollOffset: CGFloat = 0
+    @State private var wideDetailsHeight: CGFloat = 0
+    @State private var mediaState: ArtworkMediaState
 
     init(
         illustration: PixivIllustration,
         displayURLs: [URL?],
         fullSizeURLs: [URL?],
         isParallaxEnabled: Bool,
-        @ViewBuilder foreground: () -> Foreground
+        @ViewBuilder details: () -> Details,
+        @ViewBuilder footer: () -> Footer
     ) {
         self.illustration = illustration
         self.displayURLs = displayURLs
         self.fullSizeURLs = fullSizeURLs
         self.isParallaxEnabled = isParallaxEnabled
-        self.foreground = foreground()
+        self.details = details()
+        self.footer = footer()
+        _mediaState = State(initialValue: ArtworkMediaState(illustrationID: illustration.id))
     }
 
     @ViewBuilder
     var body: some View {
-        if isParallaxEnabled && horizontalSizeClass == .compact {
-            detailLayout
+        GeometryReader { safeAreaProxy in
+            let isParallaxMotionEnabled = isParallaxEnabled
+                && !isLandscape(size: safeAreaProxy.size)
+
+            if isParallaxEnabled {
+                detailLayout(
+                    topSafeAreaInset: safeAreaProxy.safeAreaInsets.top,
+                    isParallaxMotionEnabled: isParallaxMotionEnabled
+                )
 #if os(iOS)
-                .ignoresSafeArea(edges: .top)
+                    .ignoresSafeArea(edges: .top)
 #endif
-        } else {
-            detailLayout
+            } else {
+                detailLayout(
+                    topSafeAreaInset: safeAreaProxy.safeAreaInsets.top,
+                    isParallaxMotionEnabled: false
+                )
+            }
         }
+        .modifier(ArtworkMediaSession(
+            state: mediaState,
+            illustration: illustration,
+            fullSizeURLs: fullSizeURLs
+        ))
     }
 
-    private var detailLayout: some View {
+    private func detailLayout(
+        topSafeAreaInset: CGFloat,
+        isParallaxMotionEnabled: Bool
+    ) -> some View {
         GeometryReader { proxy in
-            if usesSplitLayout(availableWidth: proxy.size.width) {
-                splitLayout(in: proxy)
-            } else {
-                stackedLayout(in: proxy)
+            ScrollView {
+                Group {
+                    if usesWideLayout(for: proxy.size.width) {
+                        wideDetailLayout(
+                            proxy: proxy,
+                            topSafeAreaInset: topSafeAreaInset,
+                            isParallaxMotionEnabled: isParallaxMotionEnabled
+                        )
+                    } else {
+                        compactDetailLayout(
+                            size: proxy.size,
+                            isParallaxMotionEnabled: isParallaxMotionEnabled
+                        )
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, 24)
             }
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentOffset.y + geometry.contentInsets.top
+            } action: { _, newOffset in
+                scrollOffset = newOffset
+            }
+            .scrollEdgeEffectHidden(true, for: .top)
         }
         .background {
             ArtworkDetailSurface()
@@ -53,96 +110,258 @@ struct ArtworkParallaxDetailLayout<Foreground: View>: View {
         .scrollIndicators(.hidden)
     }
 
-    private func stackedLayout(in proxy: GeometryProxy) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                ArtworkDetailPagesLayout(
-                    illustration: illustration,
-                    displayURLs: displayURLs,
-                    fullSizeURLs: fullSizeURLs,
-                    availableWidth: proxy.size.width,
+    private func compactDetailLayout(
+        size: CGSize,
+        isParallaxMotionEnabled: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            artworkPages(
+                width: size.width,
+                viewportHeight: size.height,
+                startsParallaxImmediately: false,
+                isParallaxMotionEnabled: isParallaxMotionEnabled
+            )
+            .zIndex(0)
+
+            VStack(alignment: .leading, spacing: 20) {
+                details
+                footer
+            }
+            .padding(.horizontal)
+            .padding(.top, isParallaxEnabled ? -32 : 20)
+            .zIndex(1)
+        }
+    }
+
+    @ViewBuilder
+    private func wideDetailLayout(
+        proxy: GeometryProxy,
+        topSafeAreaInset: CGFloat,
+        isParallaxMotionEnabled: Bool
+    ) -> some View {
+        let metrics = ArtworkWideDetailMetrics(availableWidth: proxy.size.width)
+        let detailTopPadding = isParallaxEnabled ? topSafeAreaInset + 20 : 20
+        let detailWidth = metrics.detailWidth
+        let mediaWidth = isParallaxEnabled
+            ? metrics.parallaxMediaWidth
+            : metrics.mediaWidth
+        let mediaHeight = ArtworkMediaMetrics.height(
+            illustration: illustration,
+            pageCount: displayURLs.count,
+            width: mediaWidth
+        )
+        let pageHeight = ArtworkMediaMetrics.pageHeight(
+            illustration: illustration,
+            width: mediaWidth
+        )
+        let parallaxOverflow = isParallaxMotionEnabled
+            ? ArtworkParallaxMetrics.offset(
+                activeScrollOffset: max(scrollOffset, 0),
+                viewportHeight: proxy.size.height
+            )
+            : 0
+        let visualMediaHeight = mediaHeight + parallaxOverflow
+        let availableSidebarHeight = max(
+            visualMediaHeight - detailTopPadding - wideDetailsHeight - 20,
+            0
+        )
+        let relatedFlow = ArtworkRelatedFlowConfiguration(
+            sidebarWidth: max(detailWidth - 32, 1),
+            availableSidebarHeight: availableSidebarHeight
+        )
+
+        if isParallaxEnabled {
+            ZStack(alignment: .topTrailing) {
+                artworkPages(
+                    width: mediaWidth,
                     viewportHeight: proxy.size.height,
-                    scrollOffset: scrollOffset,
-                    isParallaxEnabled: isParallaxEnabled
+                    startsParallaxImmediately: true,
+                    isParallaxMotionEnabled: isParallaxMotionEnabled,
+                    showsOuterEdgeBlur: true
                 )
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .zIndex(0)
 
-                foreground
-                    .padding(.top, isParallaxEnabled ? -32 : 20)
-                    .zIndex(1)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.bottom, 24)
-        }
-        .onScrollGeometryChange(for: CGFloat.self) { geometry in
-            geometry.contentOffset.y + geometry.contentInsets.top
-        } action: { _, newOffset in
-            scrollOffset = newOffset
-        }
-        .scrollEdgeEffectHidden(true, for: .top)
-    }
-
-    private func splitLayout(in proxy: GeometryProxy) -> some View {
-        let dividerWidth: CGFloat = 1
-        let sidebarWidth = splitSidebarWidth(availableWidth: proxy.size.width)
-        let mediaWidth = max(proxy.size.width - sidebarWidth - dividerWidth, 1)
-
-        return HStack(spacing: 0) {
-            ScrollView {
-                ArtworkDetailPagesLayout(
-                    illustration: illustration,
+                ArtworkWideParallaxEdgeFill(
                     displayURLs: displayURLs,
-                    fullSizeURLs: fullSizeURLs,
-                    availableWidth: mediaWidth,
+                    pageHeight: pageHeight,
+                    mediaHeight: mediaHeight,
                     viewportHeight: proxy.size.height,
-                    scrollOffset: 0,
-                    isParallaxEnabled: false
+                    parallaxOffset: parallaxOverflow
                 )
-                .frame(minHeight: proxy.size.height, alignment: .center)
-            }
-            .frame(width: mediaWidth)
-            .scrollBounceBehavior(.basedOnSize)
-            .scrollEdgeEffectHidden(true, for: .top)
+                    .frame(
+                        width: metrics.parallaxDetailWidth,
+                        height: visualMediaHeight
+                    )
+                    .allowsHitTesting(false)
+                    .zIndex(1)
 
-            Divider()
-                .frame(width: dividerWidth)
+                ArtworkProgressiveDetailBackdrop()
+                    .frame(
+                        width: min(detailWidth + 36, proxy.size.width),
+                        height: visualMediaHeight
+                    )
+                    .allowsHitTesting(false)
+                    .zIndex(2)
 
-            ScrollView {
-                foreground
-                    .padding(.top, 20)
-                    .padding(.bottom, 24)
+                wideForeground(
+                    detailWidth: detailWidth,
+                    detailTopPadding: detailTopPadding,
+                    relatedFlow: relatedFlow
+                )
+                .zIndex(3)
             }
-            .frame(width: sidebarWidth)
-            .environment(\.horizontalSizeClass, .compact)
-            .scrollEdgeEffectHidden(true, for: .top)
+        } else {
+            ZStack(alignment: .topLeading) {
+                artworkPages(
+                    width: mediaWidth,
+                    viewportHeight: proxy.size.height,
+                    startsParallaxImmediately: false,
+                    isParallaxMotionEnabled: false,
+                    showsOutwardBlur: true
+                )
+                .frame(width: metrics.mediaWidth, alignment: .topLeading)
+                .zIndex(0)
+
+                Color.secondary.opacity(0.18)
+                    .frame(width: 1, height: mediaHeight)
+                    .offset(x: metrics.mediaWidth)
+                    .allowsHitTesting(false)
+                    .zIndex(1)
+
+                wideForeground(
+                    detailWidth: detailWidth,
+                    detailTopPadding: detailTopPadding,
+                    relatedFlow: relatedFlow
+                )
+                .zIndex(2)
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func usesSplitLayout(availableWidth: CGFloat) -> Bool {
-        availableWidth >= 900
-            && horizontalSizeClass != .compact
-            && !dynamicTypeSize.isAccessibilitySize
-            && prefersSplitLayoutForArtwork
+    private func wideForeground(
+        detailWidth: CGFloat,
+        detailTopPadding: CGFloat,
+        relatedFlow: ArtworkRelatedFlowConfiguration
+    ) -> some View {
+        VStack(alignment: .trailing, spacing: 20) {
+            details
+                .environment(\.horizontalSizeClass, .compact)
+                .padding(.horizontal)
+                .frame(width: detailWidth, alignment: .topLeading)
+                .fixedSize(horizontal: false, vertical: true)
+                .onGeometryChange(for: CGFloat.self) { geometry in
+                    geometry.size.height
+                } action: { newHeight in
+                    guard abs(wideDetailsHeight - newHeight) > 0.5 else { return }
+                    wideDetailsHeight = newHeight
+                }
+
+            footer
+                .environment(\.artworkRelatedFlowConfiguration, relatedFlow)
+                .padding(.horizontal)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .padding(.top, detailTopPadding)
+        .frame(maxWidth: .infinity, alignment: .topTrailing)
     }
 
-    private var prefersSplitLayoutForArtwork: Bool {
-        illustration.aspectRatio > 0 && illustration.aspectRatio <= 1.1
+    private func artworkPages(
+        width: CGFloat,
+        viewportHeight: CGFloat,
+        startsParallaxImmediately: Bool,
+        isParallaxMotionEnabled: Bool,
+        showsOutwardBlur: Bool = false,
+        showsOuterEdgeBlur: Bool = false
+    ) -> some View {
+        ArtworkDetailPagesLayout(
+            illustration: illustration,
+            displayURLs: displayURLs,
+            availableWidth: width,
+            viewportHeight: viewportHeight,
+            scrollOffset: scrollOffset,
+            isParallaxEnabled: isParallaxEnabled,
+            isParallaxMotionEnabled: isParallaxMotionEnabled,
+            startsParallaxImmediately: startsParallaxImmediately,
+            showsOutwardBlur: showsOutwardBlur,
+            showsOuterEdgeBlur: showsOuterEdgeBlur
+        )
     }
 
-    private func splitSidebarWidth(availableWidth: CGFloat) -> CGFloat {
-        min(max(availableWidth * 0.34, 340), 460)
+    private func usesWideLayout(for width: CGFloat) -> Bool {
+        width >= ArtworkWideDetailMetrics.minimumLayoutWidth
+    }
+
+    private func isLandscape(size: CGSize) -> Bool {
+        size.width > size.height
+    }
+}
+
+private struct ArtworkWideDetailMetrics {
+    static let minimumMediaWidth: CGFloat = 300
+    static let minimumDetailWidth: CGFloat = 300
+    static let minimumLayoutWidth = minimumMediaWidth + minimumDetailWidth + 1
+
+    let availableWidth: CGFloat
+
+    var detailWidth: CGFloat {
+        let preferredWidth = min(max(availableWidth * 0.34, 360), 480)
+        return min(preferredWidth, availableWidth - Self.minimumMediaWidth - 1)
+    }
+
+    var mediaWidth: CGFloat {
+        max(availableWidth - detailWidth - 1, 1)
+    }
+
+    var parallaxDetailWidth: CGFloat {
+        availableWidth * 0.25
+    }
+
+    var parallaxMediaWidth: CGFloat {
+        max(availableWidth - parallaxDetailWidth, 1)
+    }
+}
+
+private enum ArtworkMediaMetrics {
+    static func pageHeight(
+        illustration: PixivIllustration,
+        width: CGFloat
+    ) -> CGFloat {
+        let aspectRatio = min(max(illustration.aspectRatio, 0.42), 1.6)
+        return width / aspectRatio
+    }
+
+    static func height(
+        illustration: PixivIllustration,
+        pageCount: Int,
+        width: CGFloat
+    ) -> CGFloat {
+        let pageCount = max(pageCount, 1)
+        let pageHeight = pageHeight(illustration: illustration, width: width)
+        return pageHeight * CGFloat(pageCount) + CGFloat(max(pageCount - 1, 0)) * 2
+    }
+}
+
+private enum ArtworkParallaxMetrics {
+    static func offset(
+        activeScrollOffset: CGFloat,
+        viewportHeight: CGFloat
+    ) -> CGFloat {
+        min(activeScrollOffset * 0.55, max(viewportHeight, 1) * 0.55)
     }
 }
 
 private struct ArtworkDetailPagesLayout: View {
     let illustration: PixivIllustration
     let displayURLs: [URL?]
-    let fullSizeURLs: [URL?]
     let availableWidth: CGFloat
     let viewportHeight: CGFloat
     let scrollOffset: CGFloat
     let isParallaxEnabled: Bool
+    let isParallaxMotionEnabled: Bool
+    let startsParallaxImmediately: Bool
+    let showsOutwardBlur: Bool
+    let showsOuterEdgeBlur: Bool
 
     @ViewBuilder
     var body: some View {
@@ -159,7 +378,7 @@ private struct ArtworkDetailPagesLayout: View {
                 .overlay(alignment: .bottom) {
                     ArtworkImageTransition()
                         .frame(height: transitionHeight)
-                        .opacity(transitionProgress)
+                        .opacity(transitionOpacity)
                         .allowsHitTesting(false)
                 }
                 .offset(y: parallaxOffset)
@@ -168,26 +387,55 @@ private struct ArtworkDetailPagesLayout: View {
     }
 
     private var pages: some View {
+        ZStack(alignment: .top) {
+            if showsOutwardBlur {
+                pageContent
+                    .scaleEffect(x: 1.02, y: 1.012)
+                    .blur(radius: 24, opaque: false)
+                    .opacity(0.72)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+
+            pageContent
+        }
+        .frame(width: availableWidth, height: mediaHeight, alignment: .top)
+        .overlay {
+            if showsOuterEdgeBlur {
+                ArtworkImageOuterEdgeBlur()
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    private var pageContent: some View {
         ArtworkPagesView(
             illustration: illustration,
-            displayURLs: displayURLs,
-            fullSizeURLs: fullSizeURLs
+            displayURLs: displayURLs
         )
         .frame(width: availableWidth, height: mediaHeight, alignment: .top)
     }
 
     private var mediaHeight: CGFloat {
-        let pageCount = max(displayURLs.count, 1)
-        let pageHeight = availableWidth / clampedAspectRatio
-        return pageHeight * CGFloat(pageCount) + CGFloat(max(pageCount - 1, 0)) * 2
+        ArtworkMediaMetrics.height(
+            illustration: illustration,
+            pageCount: displayURLs.count,
+            width: availableWidth
+        )
     }
 
     private var parallaxOffset: CGFloat {
-        min(activeScrollOffset * 0.55, max(viewportHeight, 1) * 0.55)
+        guard isParallaxMotionEnabled else { return 0 }
+        return ArtworkParallaxMetrics.offset(
+            activeScrollOffset: activeScrollOffset,
+            viewportHeight: viewportHeight
+        )
     }
 
     private var parallaxStartOffset: CGFloat {
-        max(mediaHeight - max(viewportHeight, 1) - 32, 0)
+        guard !startsParallaxImmediately else { return 0 }
+        return max(mediaHeight - max(viewportHeight, 1) - 32, 0)
     }
 
     private var transitionHeight: CGFloat {
@@ -196,15 +444,211 @@ private struct ArtworkDetailPagesLayout: View {
     }
 
     private var activeScrollOffset: CGFloat {
-        max(scrollOffset - parallaxStartOffset, 0)
+        guard isParallaxMotionEnabled else { return 0 }
+        return max(scrollOffset - parallaxStartOffset, 0)
     }
 
     private var transitionProgress: CGFloat {
         min(activeScrollOffset / max(transitionHeight * 0.7, 1), 1)
     }
 
-    private var clampedAspectRatio: CGFloat {
-        min(max(illustration.aspectRatio, 0.42), 1.6)
+    private var transitionOpacity: CGFloat {
+        startsParallaxImmediately ? 1 : transitionProgress
+    }
+}
+
+private struct ArtworkProgressiveDetailBackdrop: View {
+    var body: some View {
+        ZStack {
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .mask {
+                    LinearGradient(
+                        stops: [
+                            .init(color: .clear, location: 0),
+                            .init(color: .black.opacity(0.28), location: 0.03),
+                            .init(color: .black, location: 0.18)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                }
+
+            Rectangle()
+                .fill(.thinMaterial)
+                .mask {
+                    LinearGradient(
+                        stops: [
+                            .init(color: .clear, location: 0),
+                            .init(color: .clear, location: 0.08),
+                            .init(color: .black.opacity(0.68), location: 0.26),
+                            .init(color: .black, location: 0.48)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+private struct ArtworkImageOuterEdgeBlur: View {
+    var body: some View {
+        GeometryReader { proxy in
+            let horizontalEdgeWidth = min(max(proxy.size.width * 0.025, 16), 28)
+            let verticalEdgeHeight = min(max(proxy.size.height * 0.018, 18), 32)
+
+            ZStack {
+                HStack(spacing: 0) {
+                    edgeMaterial(
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    .frame(width: horizontalEdgeWidth)
+
+                    Spacer(minLength: 0)
+
+                    edgeMaterial(
+                        startPoint: .trailing,
+                        endPoint: .leading
+                    )
+                    .frame(width: horizontalEdgeWidth)
+                }
+
+                VStack(spacing: 0) {
+                    edgeMaterial(
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: verticalEdgeHeight)
+
+                    Spacer(minLength: 0)
+
+                    edgeMaterial(
+                        startPoint: .bottom,
+                        endPoint: .top
+                    )
+                    .frame(height: verticalEdgeHeight)
+                }
+            }
+        }
+    }
+
+    private func edgeMaterial(
+        startPoint: UnitPoint,
+        endPoint: UnitPoint
+    ) -> some View {
+        Rectangle()
+            .fill(.ultraThinMaterial)
+            .mask {
+                LinearGradient(
+                    colors: [.black.opacity(0.72), .clear],
+                    startPoint: startPoint,
+                    endPoint: endPoint
+                )
+            }
+    }
+}
+
+private struct ArtworkWideParallaxEdgeFill: View {
+    let displayURLs: [URL?]
+    let pageHeight: CGFloat
+    let mediaHeight: CGFloat
+    let viewportHeight: CGFloat
+    let parallaxOffset: CGFloat
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            ArtworkDetailSurface()
+
+            VStack(spacing: 2) {
+                ForEach(pageURLs.indices, id: \.self) { index in
+                    ArtworkPageRightEdgeFill(url: pageURLs[index])
+                        .frame(height: pageHeight)
+                }
+            }
+            .frame(height: mediaHeight, alignment: .top)
+            .overlay(alignment: .bottom) {
+                ArtworkImageTransition()
+                    .frame(height: transitionHeight)
+            }
+            .offset(y: parallaxOffset)
+        }
+        .clipped()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private var pageURLs: [URL?] {
+        displayURLs.isEmpty ? [nil] : displayURLs
+    }
+
+    private var transitionHeight: CGFloat {
+        let viewportTransition = min(max(viewportHeight * 0.28, 180), 280)
+        return min(viewportTransition, max(mediaHeight * 0.3, 100))
+    }
+}
+
+private struct ArtworkPageRightEdgeFill: View {
+    @Environment(ImageRepository.self) private var imageRepository
+
+    let url: URL?
+
+    @State private var edgeImage: CGImage?
+    @State private var loadedURL: URL?
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack {
+                ArtworkDetailSurface()
+
+                if let edgeImage {
+                    Image(decorative: edgeImage, scale: 1)
+                        .resizable(resizingMode: .stretch)
+                        .interpolation(.high)
+                        .frame(width: proxy.size.width, height: proxy.size.height)
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .clipped()
+        }
+        .task(id: url) {
+            await loadEdgeImage()
+        }
+    }
+
+    private func loadEdgeImage() async {
+        if let url, loadedURL == url, edgeImage != nil {
+            return
+        }
+
+        edgeImage = nil
+        loadedURL = nil
+        guard let url else { return }
+
+        do {
+            let image = try await imageRepository.image(for: url)
+            guard !Task.isCancelled, self.url == url else { return }
+            edgeImage = Self.rightEdgeStrip(from: image)
+            loadedURL = url
+        } catch is CancellationError {
+            return
+        } catch {
+            return
+        }
+    }
+
+    private static func rightEdgeStrip(from image: CGImage) -> CGImage? {
+        guard image.width > 0, image.height > 0 else { return nil }
+
+        let cropRect = CGRect(
+            x: image.width - 1,
+            y: 0,
+            width: 1,
+            height: image.height
+        )
+        return image.cropping(to: cropRect)
     }
 }
 

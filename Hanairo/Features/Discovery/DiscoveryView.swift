@@ -7,7 +7,6 @@ struct DiscoveryView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(AppNavigationCoordinator.self) private var navigation
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @State private var kind: PixivAPI.RecommendationKind = .illustration
     @State private var kindPickerRevision = 0
@@ -22,7 +21,7 @@ struct DiscoveryView: View {
 
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 20) {
-                        content(viewportSize: proxy.size)
+                        content(availableWidth: max(proxy.size.width - 32, 1))
                     }
                     .padding(.horizontal)
                     .padding(.bottom, 24)
@@ -76,13 +75,7 @@ struct DiscoveryView: View {
             EmptyView()
         case .loaded:
             if !visibleRecommendedUsers.isEmpty {
-                HStack {
-                    Text("推荐作者")
-                        .font(.title3.weight(.bold))
-                    Spacer()
-                    NavigationLink("查看全部", value: AppRoute.recommendedUsers)
-                        .font(.subheadline)
-                }
+                recommendedUserHeader
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: 12) {
                         ForEach(visibleRecommendedUsers.prefix(10)) { preview in
@@ -95,7 +88,7 @@ struct DiscoveryView: View {
     }
 
     @ViewBuilder
-    private func content(viewportSize: CGSize) -> some View {
+    private func content(availableWidth: CGFloat) -> some View {
         switch feed.phase {
         case .idle, .loading:
             LoadingArtworkGrid()
@@ -109,24 +102,19 @@ struct DiscoveryView: View {
                 ContentUnavailableView("暂无推荐", systemImage: "sparkles")
                     .frame(minHeight: 360)
             } else {
-                FeaturedArtworkView(
-                    illustration: visibleFeedItems[0],
-                    preferredHeight: featuredArtworkHeight(for: viewportSize)
-                ) {
-                    await toggleBookmark(id: visibleFeedItems[0].id)
-                }
-                .task {
-                    guard visibleFeedItems.count == 1 else { return }
-                    await loadMore()
-                }
-                recommendedUserSection
-                Text("更多推荐")
-                    .font(.title2.weight(.bold))
-                ArtworkMasonryGrid(
-                    illustrations: Array(visibleFeedItems.dropFirst()),
-                    onLoadMore: loadMore
-                ) { id in
-                    await toggleBookmark(id: id)
+                if usesWideLayout(for: availableWidth + 32) {
+                    wideLoadedContent(availableWidth: availableWidth)
+                } else {
+                    featuredArtwork
+                    recommendedUserSection
+                    Text("更多推荐")
+                        .font(.title2.weight(.bold))
+                    ArtworkMasonryGrid(
+                        illustrations: Array(visibleFeedItems.dropFirst()),
+                        onLoadMore: loadMore
+                    ) { id in
+                        await toggleBookmark(id: id)
+                    }
                 }
                 PaginationStatusView(
                     isLoading: feed.isLoadingMore,
@@ -137,33 +125,176 @@ struct DiscoveryView: View {
         }
     }
 
-    private func featuredArtworkHeight(for viewportSize: CGSize) -> CGFloat? {
-        guard
-            viewportSize.width >= 900,
-            viewportSize.width > viewportSize.height,
-            horizontalSizeClass != .compact,
-            !dynamicTypeSize.isAccessibilitySize
-        else {
-            return nil
+    private var featuredArtwork: some View {
+        FeaturedArtworkView(illustration: visibleFeedItems[0]) {
+            await toggleBookmark(id: visibleFeedItems[0].id)
         }
+        .task {
+            guard visibleFeedItems.count == 1 else { return }
+            await loadMore()
+        }
+    }
 
-        return min(max(viewportSize.height * 0.52, 320), 420)
+    private func wideLoadedContent(availableWidth: CGFloat) -> some View {
+        let spacing: CGFloat = 20
+        let columnWidth = max((availableWidth - spacing) / 2, 1)
+        let aspectRatio = visibleFeedItems[0].aspectRatio > 0
+            ? visibleFeedItems[0].aspectRatio
+            : 0.75
+        let featuredHeight = columnWidth / aspectRatio
+        let recommendations = Array(visibleFeedItems.dropFirst())
+        let distribution = distributeWideArtwork(
+            illustrations: recommendations,
+            width: columnWidth,
+            leadingInitialHeight: featuredHeight,
+            trailingInitialHeight: wideRecommendedUserSectionHeight
+        )
+        let lastRecommendationID = recommendations.last?.id
+
+        return HStack(alignment: .top, spacing: spacing) {
+            VStack(alignment: .leading, spacing: 20) {
+                featuredArtwork
+
+                if !distribution.leading.isEmpty {
+                    wideLaneArtworkGrid(
+                        illustrations: distribution.leading,
+                        loadsMore: distribution.leading.last?.id == lastRecommendationID
+                    )
+                }
+            }
+            .frame(width: columnWidth, alignment: .topLeading)
+
+            VStack(alignment: .leading, spacing: 20) {
+                wideRecommendedUserSection(width: columnWidth)
+
+                if !distribution.trailing.isEmpty {
+                    wideLaneArtworkGrid(
+                        illustrations: distribution.trailing,
+                        loadsMore: distribution.trailing.last?.id == lastRecommendationID
+                    )
+                }
+            }
+            .frame(width: columnWidth, alignment: .topLeading)
+        }
+    }
+
+    @ViewBuilder
+    private func wideLaneArtworkGrid(
+        illustrations: [PixivIllustration],
+        loadsMore: Bool
+    ) -> some View {
+        if loadsMore {
+            ArtworkMasonryGrid(
+                illustrations: illustrations,
+                columnCount: 2,
+                onLoadMore: loadMore,
+                usesPreferredColumnCount: false
+            ) { id in
+                await toggleBookmark(id: id)
+            }
+        } else {
+            ArtworkMasonryGrid(
+                illustrations: illustrations,
+                columnCount: 2,
+                onLoadMore: nil,
+                usesPreferredColumnCount: false
+            ) { id in
+                await toggleBookmark(id: id)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func wideRecommendedUserSection(
+        width: CGFloat
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            recommendedUserHeader
+
+            switch recommendedUsers.phase {
+            case .idle, .loading:
+                ProgressView("正在发现作者…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .failed:
+                ContentUnavailableView(
+                    "推荐作者暂不可用",
+                    systemImage: "person.2.slash"
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .loaded:
+                if visibleRecommendedUsers.isEmpty {
+                    ContentUnavailableView("暂无推荐作者", systemImage: "person.2")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    let columnCount = recommendedUserColumnCount(for: width)
+                    LazyVGrid(
+                        columns: Array(
+                            repeating: GridItem(.flexible(), spacing: 12),
+                            count: columnCount
+                        ),
+                        spacing: 12
+                    ) {
+                        ForEach(
+                            visibleRecommendedUsers.prefix(
+                                recommendedUserColumnCount(for: width) * 2
+                            )
+                        ) { preview in
+                            RecommendedUserCard(preview: preview)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(minHeight: wideRecommendedUserSectionHeight, alignment: .topLeading)
+    }
+
+    private var recommendedUserHeader: some View {
+        HStack {
+            Text("推荐作者")
+                .font(.title3.weight(.bold))
+            Spacer()
+            NavigationLink("查看全部", value: AppRoute.recommendedUsers)
+                .font(.subheadline)
+        }
     }
 
     @ToolbarContentBuilder
     private var accountToolbar: some ToolbarContent {
+#if os(iOS)
+        if #available(iOS 27.1, *) {
+            accountToolbarItem.axisBehavior(.verticalPreferred)
+        } else {
+            accountToolbarItem
+        }
+#else
+        accountToolbarItem
+#endif
+    }
+
+    private var accountToolbarItem: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
             if
                 let account = authentication.account,
                 let id = account.numericID
             {
-                NavigationLink(value: AppRoute.user(id: id)) {
+                let preview = PixivUser(
+                    id: id,
+                    name: account.name,
+                    account: account.account,
+                    profileImageURLs: .init(
+                        medium: account.profileImageURLs.large
+                            ?? account.profileImageURLs.medium
+                    )
+                )
+
+                NavigationLink(value: AppRoute.user(id: id, preview: preview)) {
                     RemoteImageView(
                         url: account.profileImageURLs.large ?? account.profileImageURLs.medium
                     )
                     .frame(width: 30, height: 30)
                     .clipShape(Circle())
                     .clipped()
+                    .appNavigationTransitionSource(for: .user(id: id))
                 }
                 .accessibilityLabel("我的主页")
             }
@@ -257,6 +388,65 @@ struct DiscoveryView: View {
     private var visibleRecommendedUsers: [PixivUserPreview] {
         recommendedUsers.items.filter { !localBlocks.isBlocked($0.user) }
     }
+
+    private func recommendedUserColumnCount(for width: CGFloat) -> Int {
+        if dynamicTypeSize.isAccessibilitySize {
+            return 1
+        }
+        return min(max(Int((width + 12) / 152), 2), 4)
+    }
+
+    private var wideRecommendedUserSectionHeight: CGFloat {
+        340
+    }
+
+    private func distributeWideArtwork(
+        illustrations: [PixivIllustration],
+        width: CGFloat,
+        leadingInitialHeight: CGFloat,
+        trailingInitialHeight: CGFloat
+    ) -> (
+        leading: [PixivIllustration],
+        trailing: [PixivIllustration]
+    ) {
+        let spacing: CGFloat = 12
+        let cardWidth = max((width - spacing) / 2, 1)
+        var columnHeights = [
+            leadingInitialHeight + 20,
+            leadingInitialHeight + 20,
+            trailingInitialHeight + 20,
+            trailingInitialHeight + 20
+        ]
+        var columnItemCounts = Array(repeating: 0, count: 4)
+        var leading: [PixivIllustration] = []
+        var trailing: [PixivIllustration] = []
+
+        for illustration in illustrations {
+            let targetColumn = columnHeights.indices.min {
+                columnHeights[$0] < columnHeights[$1]
+            } ?? 0
+            let itemSpacing = columnItemCounts[targetColumn] == 0 ? 0 : spacing
+            let aspectRatio = illustration.aspectRatio > 0
+                ? illustration.aspectRatio
+                : 0.75
+            let estimatedHeight = cardWidth * (1 / aspectRatio + 0.34)
+
+            columnHeights[targetColumn] += itemSpacing + estimatedHeight
+            columnItemCounts[targetColumn] += 1
+
+            if targetColumn < 2 {
+                leading.append(illustration)
+            } else {
+                trailing.append(illustration)
+            }
+        }
+
+        return (leading, trailing)
+    }
+
+    private func usesWideLayout(for width: CGFloat) -> Bool {
+        width >= 900 && !dynamicTypeSize.isAccessibilitySize
+    }
 }
 
 private struct RecommendedUserCard: View {
@@ -264,7 +454,9 @@ private struct RecommendedUserCard: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            NavigationLink(value: AppRoute.user(id: preview.user.id)) {
+            NavigationLink(
+                value: AppRoute.user(id: preview.user.id, preview: preview.user)
+            ) {
                 VStack(spacing: 8) {
                     RemoteImageView(url: preview.user.profileImageURLs.medium)
                         .frame(width: 58, height: 58)
@@ -275,6 +467,7 @@ private struct RecommendedUserCard: View {
                         .lineLimit(1)
                         .frame(width: 116)
                 }
+                .appNavigationTransitionSource(for: .user(id: preview.user.id))
             }
             .buttonStyle(.plain)
             FollowButton(user: preview.user, compact: true)
@@ -285,23 +478,18 @@ private struct RecommendedUserCard: View {
 }
 
 private struct FeaturedArtworkView: View {
-    @Environment(\.artworkTransitionNamespace) private var artworkTransitionNamespace
     @Environment(PixivRepository.self) private var repository
     @Environment(AppSettings.self) private var settings
 
     let illustration: PixivIllustration
-    let preferredHeight: CGFloat?
     let onBookmark: () async -> Void
     @State private var isChangingBookmark = false
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            NavigationLink(value: AppRoute.illustration(id: illustration.id)) {
+            NavigationLink(value: route) {
                 featuredImage
-                    .artworkTransitionSource(
-                        id: illustration.id,
-                        namespace: artworkTransitionNamespace
-                    )
+                    .appNavigationTransitionSource(for: route)
             }
             .buttonStyle(.plain)
 
@@ -350,36 +538,29 @@ private struct FeaturedArtworkView: View {
         repository.bookmarkState(for: illustration)
     }
 
-    @ViewBuilder
     private var featuredImage: some View {
-        if let preferredHeight {
-            imageWithOverlay
-                .frame(maxWidth: .infinity)
-                .frame(height: preferredHeight)
-        } else {
-            imageWithOverlay
-                .frame(maxWidth: .infinity)
-                .aspectRatio(
-                    illustration.aspectRatio > 0 ? illustration.aspectRatio : 0.75,
-                    contentMode: .fit
-                )
-        }
-    }
-
-    private var imageWithOverlay: some View {
         RemoteImageView(
             url: illustration.previewURL(for: settings.previewImageQuality)
         )
+        .frame(maxWidth: .infinity)
+        .aspectRatio(
+            illustration.aspectRatio > 0 ? illustration.aspectRatio : 0.75,
+            contentMode: .fit
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .clipped()
+        .overlay {
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.72)],
+                startPoint: .center,
+                endPoint: .bottom
+            )
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .clipped()
-            .overlay {
-                LinearGradient(
-                    colors: [.clear, .black.opacity(0.72)],
-                    startPoint: .center,
-                    endPoint: .bottom
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            }
+        }
+    }
+
+    private var route: AppRoute {
+        .illustration(id: illustration.id, preview: illustration)
     }
 }
 

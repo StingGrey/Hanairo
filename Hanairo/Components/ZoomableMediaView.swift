@@ -41,6 +41,10 @@ struct ZoomableMediaView<Content: View>: View {
                 .onChange(of: resetToken) {
                     resetPosition()
                 }
+                .onChange(of: proxy.size) { _, size in
+                    offset = clamped(offset: offset, in: size, scale: scale)
+                    settledOffset = offset
+                }
         }
         .clipped()
     }
